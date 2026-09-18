@@ -6,6 +6,7 @@
 <title>Wassil — réservation de capacité camion</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root {
     --bg: #f3f2ef; --card: #fff; --border: #ebe9e6; --text: #1c1917; --muted: #78716c;
@@ -24,17 +25,20 @@
   header .brand .tagline { font-weight: 400; font-size: 11.5px; color: #94a3b8; display: block; margin-top: 1px; }
   .idbox { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #cbd5e1; background: rgba(255,255,255,.06); padding: 5px 10px; border-radius: 20px; }
   .idbox .dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; }
-  .theme-btn { background: rgba(255,255,255,.08); border: none; color: #f1f5f9; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; }
+  .theme-btn, .logout-btn { background: rgba(255,255,255,.08); border: none; color: #f1f5f9; height: 30px; border-radius: 15px; cursor: pointer; font-size: 13px; padding: 0 10px; }
+  .theme-btn { width: 30px; padding: 0; }
 
   main { max-width: 780px; margin: 0 auto; padding: 16px; }
+  .authwrap { max-width: 380px; margin: 40px auto; padding: 0 16px; }
   .notice { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 9px 13px; border-radius: 10px; font-size: 13px; margin-bottom: 14px; }
   [data-theme="dark"] .notice { background: #3a2f10; border-color: #5c4a14; color: #fbbf24; }
   h2 { font-size: 14.5px; font-weight: 700; margin: 20px 0 10px; color: var(--text); text-transform: uppercase; letter-spacing: .4px; }
   .toprow { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .btn { border: none; cursor: pointer; padding: 8px 15px; border-radius: 9px; font-size: 14px; transition: transform .08s ease; }
   .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: .55; cursor: default; }
   .btn-dark { background: #0f172a; color: #f1f5f9; }
-  .btn-amber { background: linear-gradient(135deg, #f59e0b, #ea9c1b); color: #1c1917; font-weight: 700; box-shadow: 0 2px 8px rgba(245,158,11,.35); }
+  .btn-amber { background: linear-gradient(135deg, #f59e0b, #ea9c1b); color: #1c1917; font-weight: 700; box-shadow: 0 2px 8px rgba(245,158,11,.35); width: 100%; }
   .btn-outline { background: var(--card); border: 1px solid var(--fieldborder); color: var(--muted); font-size: 12px; padding: 5px 11px; cursor: pointer; border-radius: 7px; }
   .btn-ok { background: #d1fae5; color: #065f46; font-size: 12px; padding: 5px 11px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; }
   .btn-no { background: #fee2e2; color: #991b1b; font-size: 12px; padding: 5px 11px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; }
@@ -112,6 +116,13 @@
   .toast.err { background: #991b1b; }
   .toast.ok { background: #065f46; }
   @keyframes toastin { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .authcard { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+  .authtabs { display: flex; gap: 6px; margin-bottom: 16px; background: var(--border); padding: 4px; border-radius: 10px; }
+  .authtabs button { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .authtabs button.active { background: var(--card); color: var(--text); }
+  .spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -120,55 +131,52 @@
   <div class="row">
     <div class="brand">🚚 Wassil<span class="tagline">réservation de capacité camion</span></div>
     <div style="display:flex; align-items:center; gap:8px;">
-      <div class="idbox" id="idbox"><span class="dot"></span><span id="idboxText">—</span></div>
+      <div class="idbox" id="idbox" style="display:none;"><span class="dot"></span><span id="idboxText">—</span></div>
+      <button class="logout-btn" id="logoutBtn" style="display:none;" onclick="doLogout()">Déconnexion</button>
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Mode sombre">🌙</button>
     </div>
   </div>
 </header>
 <main id="app"></main>
 
-<nav class="bottomnav">
+<nav class="bottomnav" id="bottomnav" style="display:none;">
   <button id="tabClient" class="active"><span class="ic">📦</span>Client</button>
   <button id="tabChauffeur"><span class="ic">🚚</span>Chauffeur</button>
 </nav>
 
 <script>
-// ================= stockage =================
-var TRIPS_KEY = "wassil_trips", RES_KEY = "wassil_reservations", REQ_KEY = "wassil_requests";
-var syncError = false;
-function loadKey(k) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : []; } catch (e) { syncError = true; return []; } }
-function saveKey(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { syncError = true; } }
-function loadTrips() { return loadKey(TRIPS_KEY); } function saveTrips() { saveKey(TRIPS_KEY, state.trips); }
-function loadReservations() { return loadKey(RES_KEY); } function saveReservations() { saveKey(RES_KEY, state.reservations); }
-function loadRequests() { return loadKey(REQ_KEY); } function saveRequests() { saveKey(REQ_KEY, state.requests); }
-
-// ================= état =================
-var state = {
-  role: "client",
-  clientSubTab: "browse", chauffeurSubTab: "mytrips",
-  profiles: { client: { prenom: "", nom: "", tel: "", verified: false }, chauffeur: { prenom: "", nom: "", tel: "", verified: false } },
-  editingProfile: false,
-  trips: [], reservations: [], requests: [],
-  search: "", sortBy: "date",
-  showNewTrip: false, showNewRequest: false,
-  reserveFor: null, openThread: null, openReqThread: null,
-  tripError: "", reserveError: "", reqError: ""
-};
+// ================= config Supabase =================
+var SUPABASE_URL = "https://vktuwoyikseadvfzgacd.supabase.co";
+var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdHV3b3lpa3NlYWR2ZnpnYWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mzk5ODQsImV4cCI6MjEwNTMxNTk4NH0.etKO1Ruho3Uj80RpS8v4M0TAlQW9WJY39z55j6_pPUs";
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 var VEHICLES = { bache: "🚚 Bâché", frigo: "❄️ Frigorifique", plateau: "📐 Plateau", benne: "🏗️ Benne" };
 function vehicleLabel(v) { return VEHICLES[v] || "🚚 Bâché"; }
-
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
-function fullName(role) { var p = state.profiles[role]; return (p.prenom.trim() + " " + p.nom.trim()).trim(); }
-function profileComplete(role) { var p = state.profiles[role]; return !!(p.prenom.trim() && p.nom.trim() && p.tel.trim()); }
-function initials(role) { var p = state.profiles[role]; return ((p.prenom.trim()[0] || "") + (p.nom.trim()[0] || "")).toUpperCase(); }
-var isHosted = /claude\.ai/.test(location.hostname);
+
+// ================= état =================
+var state = {
+  session: null, myProfile: null, profilesById: {},
+  trips: [], reservations: [], requests: [], offers: [],
+  role: "client", clientSubTab: "browse", chauffeurSubTab: "mytrips",
+  authMode: "login", authError: "", authBusy: false,
+  editingProfile: false, profileError: "",
+  search: "", sortBy: "date",
+  showNewTrip: false, showNewRequest: false,
+  reserveFor: null, openThread: null, openReqThread: null,
+  messages: {},
+  tripError: "", reserveError: "", reqError: ""
+};
+
+function myId() { return state.session ? state.session.user.id : null; }
+function profileById(id) { return state.profilesById[id] || null; }
+function displayName(p) { return p ? (p.prenom + " " + p.nom) : "—"; }
+function verifiedTag(p) { return p && p.verified ? '<span class="verified">✅ Vérifié</span>' : ""; }
 
 // ================= thème =================
 function toggleTheme() {
-  var el = document.documentElement;
-  var dark = el.getAttribute("data-theme") === "dark";
+  var el = document.documentElement; var dark = el.getAttribute("data-theme") === "dark";
   el.setAttribute("data-theme", dark ? "light" : "dark");
   document.getElementById("themeBtn").textContent = dark ? "🌙" : "☀️";
 }
@@ -176,9 +184,7 @@ function toggleTheme() {
 // ================= toasts =================
 function showToast(msg, type) {
   var wrap = document.getElementById("toastWrap");
-  var t = document.createElement("div");
-  t.className = "toast" + (type ? " " + type : "");
-  t.textContent = msg;
+  var t = document.createElement("div"); t.className = "toast" + (type ? " " + type : ""); t.textContent = msg;
   wrap.appendChild(t);
   setTimeout(function () { t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(function () { t.remove(); }, 300); }, 2600);
 }
@@ -186,7 +192,6 @@ function showToast(msg, type) {
 // ================= géoloc & autocomplétion (OSM/Nominatim) =================
 var addressDebounce = {}, lastSuggestions = {}, coords = { origin: null, dest: null };
 function onAddressInput(fieldId) {
-  if (isHosted) return;
   var val = document.getElementById(fieldId).value;
   clearTimeout(addressDebounce[fieldId]);
   if (val.trim().length < 3) { document.getElementById("sugg-" + fieldId).innerHTML = ""; return; }
@@ -257,14 +262,139 @@ function fetchRouteInfo() {
   }).catch(function () { if (infoEl) infoEl.textContent = "Itinéraire indisponible."; routeInfo = null; });
 }
 function formatDuration(min) { var h = Math.floor(min / 60), m = Math.round(min % 60); return h > 0 ? (h + "h" + (m ? (m < 10 ? "0" + m : m) : "")) : (m + " min"); }
-function osmDirectionsUrl(t) { if (!t.originLat || !t.destLat) return null; return "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=" + t.originLat + "%2C" + t.originLon + "%3B" + t.destLat + "%2C" + t.destLon; }
+function osmDirectionsUrl(t) { if (!t.origin_lat || !t.dest_lat) return null; return "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=" + t.origin_lat + "%2C" + t.origin_lon + "%3B" + t.dest_lat + "%2C" + t.dest_lon; }
+
+// ================= AUTHENTIFICATION =================
+async function initAuth() {
+  var { data } = await sb.auth.getSession();
+  state.session = data.session;
+  sb.auth.onAuthStateChange(function (event, session) { state.session = session; onAuthChange(); });
+  await onAuthChange();
+}
+async function onAuthChange() {
+  if (state.session) {
+    await loadMyProfile();
+    if (state.myProfile) { await loadAllData(); subscribeRealtime(); }
+  } else {
+    state.myProfile = null;
+    if (dataChannel) { sb.removeChannel(dataChannel); dataChannel = null; }
+  }
+  render();
+}
+async function doSignup() {
+  var email = document.getElementById("auth-email").value.trim();
+  var pass = document.getElementById("auth-pass").value;
+  if (!email || pass.length < 6) { state.authError = "Email valide + mot de passe (6 caractères min) requis."; render(); return; }
+  state.authBusy = true; state.authError = ""; render();
+  var { data, error } = await sb.auth.signUp({ email: email, password: pass });
+  state.authBusy = false;
+  if (error) { state.authError = error.message; render(); return; }
+  if (!data.session) { state.authError = ""; showToast("Compte créé — vérifie ta boîte mail pour confirmer, puis connecte-toi.", "ok"); state.authMode = "login"; render(); return; }
+  state.session = data.session; await onAuthChange();
+}
+async function doLogin() {
+  var email = document.getElementById("auth-email").value.trim();
+  var pass = document.getElementById("auth-pass").value;
+  if (!email || !pass) { state.authError = "Email et mot de passe requis."; render(); return; }
+  state.authBusy = true; state.authError = ""; render();
+  var { data, error } = await sb.auth.signInWithPassword({ email: email, password: pass });
+  state.authBusy = false;
+  if (error) { state.authError = error.message; render(); return; }
+  state.session = data.session; await onAuthChange();
+}
+async function doLogout() { await sb.auth.signOut(); state.session = null; await onAuthChange(); }
+
+async function loadMyProfile() {
+  var { data } = await sb.from("profiles").select("*").eq("id", myId()).maybeSingle();
+  state.myProfile = data || null;
+}
+async function saveProfileToDb() {
+  var prenom = document.getElementById("p-prenom").value.trim();
+  var nom = document.getElementById("p-nom").value.trim();
+  var tel = document.getElementById("p-tel").value.trim();
+  var verified = document.getElementById("p-verified").checked;
+  if (!prenom || !nom || !tel) { state.profileError = "Prénom, nom et téléphone sont obligatoires."; render(); return; }
+  var row = { id: myId(), prenom: prenom, nom: nom, tel: tel, verified: verified };
+  var { error } = await sb.from("profiles").upsert(row);
+  if (error) { state.profileError = error.message; render(); return; }
+  state.myProfile = row; state.editingProfile = false; state.profileError = "";
+  await loadAllData(); subscribeRealtime();
+  render(); showToast("Profil enregistré", "ok");
+}
+
+// ================= chargement des données =================
+var dataChannel = null, threadChannel = null;
+async function loadAllData() {
+  var [profilesRes, tripsRes, resvRes, reqRes, offRes] = await Promise.all([
+    sb.from("profiles").select("*"),
+    sb.from("trips").select("*").order("created_at", { ascending: false }),
+    sb.from("reservations").select("*").order("created_at", { ascending: false }),
+    sb.from("requests").select("*").order("created_at", { ascending: false }),
+    sb.from("request_offers").select("*").order("created_at", { ascending: false })
+  ]);
+  state.profilesById = {}; (profilesRes.data || []).forEach(function (p) { state.profilesById[p.id] = p; });
+  state.trips = tripsRes.data || []; state.reservations = resvRes.data || [];
+  state.requests = reqRes.data || []; state.offers = offRes.data || [];
+}
+function subscribeRealtime() {
+  if (dataChannel) return;
+  dataChannel = sb.channel("public-data")
+    .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, handleDataChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "reservations" }, handleDataChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "requests" }, handleDataChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "request_offers" }, handleDataChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, handleDataChange)
+    .subscribe();
+}
+function handleDataChange() { loadAllData().then(render); }
+
+// ================= messages (chat) =================
+function threadKey(type, id) { return type + ":" + id; }
+async function loadThreadMessages(type, id) {
+  var { data } = await sb.from("messages").select("*").eq("thread_type", type).eq("thread_id", id).order("created_at");
+  state.messages[threadKey(type, id)] = data || [];
+}
+function subscribeThread(type, id) {
+  if (threadChannel) { sb.removeChannel(threadChannel); threadChannel = null; }
+  threadChannel = sb.channel("thread-" + type + "-" + id)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: "thread_id=eq." + id }, function (payload) {
+      if (payload.new.thread_type !== type) return;
+      var key = threadKey(type, id);
+      var arr = state.messages[key] || [];
+      if (!arr.find(function (m) { return m.id === payload.new.id; })) arr = arr.concat([payload.new]);
+      state.messages[key] = arr; render();
+    }).subscribe();
+}
+async function toggleThread(resId) {
+  if (state.openThread === resId) { state.openThread = null; if (threadChannel) { sb.removeChannel(threadChannel); threadChannel = null; } render(); return; }
+  state.openThread = resId; state.openReqThread = null;
+  render();
+  await loadThreadMessages("reservation", resId);
+  subscribeThread("reservation", resId);
+  render();
+}
+async function toggleReqThread(offerId) {
+  if (state.openReqThread === offerId) { state.openReqThread = null; if (threadChannel) { sb.removeChannel(threadChannel); threadChannel = null; } render(); return; }
+  state.openReqThread = offerId; state.openThread = null;
+  render();
+  await loadThreadMessages("offer", offerId);
+  subscribeThread("offer", offerId);
+  render();
+}
+async function sendChatMessage(type, id) {
+  var elId = "chatinput-" + type + "-" + id;
+  var input = document.getElementById(elId); if (!input) return;
+  var text = input.value.trim(); if (!text) return;
+  input.value = "";
+  await sb.from("messages").insert({ thread_type: type, thread_id: id, sender_id: myId(), text: text });
+}
 
 // ================= dérivées =================
 function tripOf(tripId) { return state.trips.find(function (x) { return x.id === tripId; }); }
 function requestOf(reqId) { return state.requests.find(function (x) { return x.id === reqId; }); }
 function tripLabel(tripId) { var t = tripOf(tripId); if (!t) return "trajet supprimé"; return esc(t.origin) + " → " + esc(t.destination) + " · " + esc(t.date); }
-function driverStats(driverName) {
-  var relevant = state.reservations.filter(function (r) { var t = tripOf(r.tripId); return t && t.driverName === driverName; });
+function driverStats(driverId) {
+  var relevant = state.reservations.filter(function (r) { var t = tripOf(r.trip_id); return t && t.driver_id === driverId; });
   var ratings = relevant.filter(function (r) { return r.rating; }).map(function (r) { return r.rating; });
   var avg = ratings.length ? (ratings.reduce(function (a, b) { return a + b; }, 0) / ratings.length) : null;
   var delivered = relevant.filter(function (r) { return r.status === "terminee"; }).length;
@@ -283,22 +413,27 @@ function badge(status) {
   return '<span class="badge ' + v[1] + '">' + v[0] + '</span>';
 }
 function routeBadgeHtml(t) {
-  if (!t.distanceKm) return "";
-  var h = '<span class="route-badge">🛣️ ' + t.distanceKm + ' km · ' + formatDuration(t.durationMin) + '</span>';
+  if (!t.distance_km) return "";
+  var h = '<span class="route-badge">🛣️ ' + t.distance_km + ' km · ' + formatDuration(t.duration_min) + '</span>';
   var url = osmDirectionsUrl(t); if (url) h += ' <a class="route-link" href="' + url + '" target="_blank" rel="noopener">Itinéraire ↗</a>';
   return h;
 }
 function co2Html(r, t) {
-  if (!t || !t.distanceKm || !t.capacity) return "";
-  var kg = Math.round(t.distanceKm * 0.9 * (r.m3 / t.capacity));
+  if (!t || !t.distance_km || !t.capacity) return "";
+  var kg = Math.round(t.distance_km * 0.9 * (r.m3 / t.capacity));
   return '<div class="co2">🌱 ≈ ' + kg + ' kg de CO₂ économisés en mutualisant ce chargement (estimation illustrative)</div>';
 }
-function chatHtml(r, sendFn) {
-  var msgs = r.messages.map(function (m) { var t = new Date(m.ts); var hh = ("0" + t.getHours()).slice(-2), mm = ("0" + t.getMinutes()).slice(-2); return '<div class="msg"><b>' + esc(m.from) + '</b> <span class="muted">· ' + hh + ':' + mm + '</span><div>' + esc(m.text) + '</div></div>'; }).join("");
+function chatHtml(type, id) {
+  var msgs = (state.messages[threadKey(type, id)] || []).map(function (m) {
+    var p = profileById(m.sender_id); var name = p ? displayName(p) : "…";
+    var t = new Date(m.created_at); var hh = ("0" + t.getHours()).slice(-2), mm = ("0" + t.getMinutes()).slice(-2);
+    return '<div class="msg"><b>' + esc(name) + '</b> <span class="muted">· ' + hh + ':' + mm + '</span><div>' + esc(m.text) + '</div></div>';
+  }).join("");
   if (!msgs) msgs = '<p class="muted">Aucun message.</p>';
+  var elId = "chatinput-" + type + "-" + id;
   return '<div class="chatbox"><div>' + msgs + '</div><div class="chatinput">' +
-    '<input type="text" id="chatinput-' + r.id + '" placeholder="Écrire un message" onkeydown="if(event.key===\'Enter\')' + sendFn + '(\'' + r.id + '\')" />' +
-    '<button onclick="' + sendFn + '(\'' + r.id + '\')">Envoyer</button></div></div>';
+    '<input type="text" id="' + elId + '" placeholder="Écrire un message" onkeydown="if(event.key===\'Enter\')sendChatMessage(\'' + type + '\',\'' + id + '\')" />' +
+    '<button onclick="sendChatMessage(\'' + type + '\',\'' + id + '\')">Envoyer</button></div></div>';
 }
 function ratingHint() { return '<p class="muted" style="margin:2px 0 10px;">ℹ️ La notation apparaît une fois la réservation "Livrée".</p>'; }
 function ratingWidget(r) {
@@ -306,23 +441,21 @@ function ratingWidget(r) {
   var stars = ""; for (var i = 1; i <= 5; i++) stars += '<span onclick="rateReservation(\'' + r.id + '\',' + i + ')">☆</span>';
   return '<div style="margin-top:6px;"><span class="muted">Noter ce chauffeur : </span><span class="stars">' + stars + '</span></div>';
 }
-function verifiedTag(role) { return state.profiles[role].verified ? '<span class="verified">✅ Vérifié</span>' : ""; }
 
 // ================= suivi en direct =================
-function startTrip(resId) {
+async function startTrip(resId) {
   var r = state.reservations.find(function (x) { return x.id === resId; });
-  var t = tripOf(r.tripId);
-  r.status = "en_route";
-  r.startedAt = Date.now();
-  r.etaMinutes = (t && t.durationMin) ? t.durationMin : 60;
-  saveReservations(); render();
-  showToast("Trajet démarré 🚚 — suivi en direct activé");
+  var t = tripOf(r.trip_id);
+  var eta = (t && t.duration_min) ? t.duration_min : 60;
+  var { error } = await sb.from("reservations").update({ status: "en_route", started_at: new Date().toISOString(), eta_minutes: eta }).eq("id", resId);
+  if (error) { showToast(error.message, "err"); return; }
+  await loadAllData(); render(); showToast("Trajet démarré 🚚 — suivi en direct activé");
 }
 function progressOf(r) {
-  if (r.status !== "en_route" || !r.startedAt) return null;
-  var elapsedMin = (Date.now() - r.startedAt) / 60000;
-  var pct = Math.min(100, (elapsedMin / r.etaMinutes) * 100);
-  var remainMin = Math.max(0, Math.round(r.etaMinutes - elapsedMin));
+  if (r.status !== "en_route" || !r.started_at) return null;
+  var elapsedMin = (Date.now() - new Date(r.started_at).getTime()) / 60000;
+  var pct = Math.min(100, (elapsedMin / r.eta_minutes) * 100);
+  var remainMin = Math.max(0, Math.round(r.eta_minutes - elapsedMin));
   return { pct: pct, remainMin: remainMin };
 }
 function progressHtml(r) {
@@ -342,40 +475,63 @@ setInterval(function () {
 
 // ================= rendu =================
 function render() {
+  if (!state.session) { renderAuth(); return; }
+  if (!state.myProfile) { renderProfileSetup(); return; }
+
+  document.getElementById("idbox").style.display = "flex";
+  document.getElementById("logoutBtn").style.display = "inline-block";
+  document.getElementById("bottomnav").style.display = "flex";
+  document.getElementById("idboxText").textContent = displayName(state.myProfile);
+
   document.getElementById("tabClient").className = state.role === "client" ? "active" : "";
   document.getElementById("tabChauffeur").className = state.role === "chauffeur" ? "active" : "";
-
-  var pendingForChauffeur = state.reservations.filter(function (r) { var t = tripOf(r.tripId); return t && t.driverName === fullName("chauffeur") && r.status === "en_attente"; }).length;
-  var activeForClient = state.reservations.filter(function (r) { return r.clientName === fullName("client") && (r.status === "validee" || r.status === "en_route"); }).length;
+  var pendingForChauffeur = state.reservations.filter(function (r) { var t = tripOf(r.trip_id); return t && t.driver_id === myId() && r.status === "en_attente"; }).length;
+  var activeForClient = state.reservations.filter(function (r) { return r.client_id === myId() && (r.status === "validee" || r.status === "en_route"); }).length;
   document.getElementById("tabChauffeur").innerHTML = '<span class="ic">🚚</span>Chauffeur' + (pendingForChauffeur ? '<span class="dot">' + pendingForChauffeur + '</span>' : "");
   document.getElementById("tabClient").innerHTML = '<span class="ic">📦</span>Client' + (activeForClient ? '<span class="dot">' + activeForClient + '</span>' : "");
 
-  document.getElementById("idboxText").textContent = profileComplete(state.role) ? fullName(state.role) : "profil incomplet";
-
-  var html = renderProfileBar(state.role);
-  if (!profileComplete(state.role)) { document.getElementById("app").innerHTML = html; return; }
-
-  html += state.role === "chauffeur" ? renderChauffeur() : renderClient();
-  html += '<p class="footer-note">POC — bascule Client/Chauffeur en bas (synchronisation entre onglets du même navigateur). Adresses, carte, itinéraire & suggestions nécessitent une connexion internet et ne fonctionnent que dans le fichier téléchargé (pas sur un lien hébergé).</p>';
+  var html = state.role === "chauffeur" ? renderChauffeur() : renderClient();
+  html += '<p class="footer-note">Connecté à une vraie base de données (Supabase) — synchronisation en direct entre tous les appareils, plus besoin d\'onglets multiples.</p>';
   document.getElementById("app").innerHTML = html;
 
-  if (!isHosted && state.role === "chauffeur" && (state.showNewTrip || (state.chauffeurSubTab === "clientrequests" && state.showNewTrip))) { setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0); }
+  if (state.role === "chauffeur" && state.showNewTrip) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
+  if (state.role === "client" && state.clientSubTab === "requests" && state.showNewRequest) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
 }
 
-function renderProfileBar(role) {
-  var p = state.profiles[role];
-  if (!profileComplete(role) || state.editingProfile) {
-    return '<div class="profilebar"><div class="muted" style="margin-bottom:8px;">Profil ' + (role === "client" ? "client" : "chauffeur") + '</div>' +
-      '<div class="grid3">' +
-        '<input class="field" id="p-prenom" placeholder="Prénom" value="' + esc(p.prenom) + '" />' +
-        '<input class="field" id="p-nom" placeholder="Nom" value="' + esc(p.nom) + '" />' +
-        '<input class="field" id="p-tel" placeholder="Téléphone" value="' + esc(p.tel) + '" />' +
-      '</div>' +
-      '<label class="muted" style="display:flex; align-items:center; gap:6px; margin-bottom:10px;"><input type="checkbox" id="p-verified"' + (p.verified ? " checked" : "") + ' /> Je certifie mon identité (simulation de vérification)</label>' +
-      '<button class="btn btn-amber" onclick="saveProfile(\'' + role + '\')">Enregistrer le profil</button></div>';
-  }
-  return '<div class="profilebar"><div class="summary"><div><span class="avatar">' + initials(role) + '</span><b>' + esc(fullName(role)) + '</b> ' + verifiedTag(role) + ' <span class="muted">· ' + esc(p.tel) + '</span></div>' +
-    '<button class="btn-outline" onclick="state.editingProfile=true; render();">Modifier</button></div></div>';
+function renderAuth() {
+  document.getElementById("idbox").style.display = "none";
+  document.getElementById("logoutBtn").style.display = "none";
+  document.getElementById("bottomnav").style.display = "none";
+  var h = '<div class="authwrap"><div class="authcard">' +
+    '<div class="authtabs">' +
+      '<button class="' + (state.authMode === "login" ? "active" : "") + '" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">Connexion</button>' +
+      '<button class="' + (state.authMode === "signup" ? "active" : "") + '" onclick="state.authMode=\'signup\'; state.authError=\'\'; render();">Créer un compte</button>' +
+    '</div>' +
+    '<input class="field" id="auth-email" type="email" placeholder="Email" autocomplete="username" />' +
+    '<input class="field" id="auth-pass" type="password" placeholder="Mot de passe" autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
+    '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="' + (state.authMode === "login" ? "doLogin()" : "doSignup()") + '">' +
+      (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? "Se connecter" : "Créer mon compte") + '</button>' +
+    (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
+    '<p class="muted" style="margin-top:14px; text-align:center;">🚚 Wassil — marketplace de capacité camion</p>' +
+  '</div></div>';
+  document.getElementById("app").innerHTML = h;
+}
+
+function renderProfileSetup() {
+  document.getElementById("idbox").style.display = "none";
+  document.getElementById("logoutBtn").style.display = "inline-block";
+  document.getElementById("bottomnav").style.display = "none";
+  var h = '<div class="authwrap"><div class="authcard">' +
+    '<h2 style="margin-top:0;">Complète ton profil</h2>' +
+    '<p class="muted" style="margin-top:-4px;">Utilisé aussi bien quand tu réserves (client) que quand tu publies des trajets (chauffeur).</p>' +
+    '<input class="field" id="p-prenom" placeholder="Prénom" />' +
+    '<input class="field" id="p-nom" placeholder="Nom" />' +
+    '<input class="field" id="p-tel" placeholder="Téléphone" />' +
+    '<label class="muted" style="display:flex; align-items:center; gap:6px; margin-bottom:12px;"><input type="checkbox" id="p-verified" /> Je certifie mon identité (simulation de vérification)</label>' +
+    '<button class="btn btn-amber" onclick="saveProfileToDb()">Continuer</button>' +
+    (state.profileError ? '<div class="error">' + esc(state.profileError) + '</div>' : '') +
+  '</div></div>';
+  document.getElementById("app").innerHTML = h;
 }
 
 function subtabsHtml(which) {
@@ -396,9 +552,9 @@ function renderChauffeur() {
 }
 
 function renderMyTrips() {
-  var name = fullName("chauffeur");
-  var myTrips = state.trips.filter(function (t) { return t.driverName === name; });
-  var myRes = state.reservations.filter(function (r) { var t = tripOf(r.tripId); return t && t.driverName === name; });
+  var name = myId();
+  var myTrips = state.trips.filter(function (t) { return t.driver_id === name; });
+  var myRes = state.reservations.filter(function (r) { var t = tripOf(r.trip_id); return t && t.driver_id === name; });
   var m3Valides = myRes.filter(function (r) { return r.status === "validee" || r.status === "en_route" || r.status === "terminee"; }).reduce(function (a, r) { return a + r.m3; }, 0);
   var stats = driverStats(name);
 
@@ -418,7 +574,7 @@ function renderMyTrips() {
       '<div class="suggestions" id="sugg-f-origin"></div></div>' +
       '<div class="addr-wrap"><input class="field" id="f-dest" placeholder="Arrivée" value="' + esc(state._dest||"") + '" oninput="onAddressInput(\'f-dest\')" onblur="hideSuggestionsLater(\'f-dest\')" autocomplete="off" />' +
         '<div class="suggestions" id="sugg-f-dest"></div></div>' +
-      (isHosted ? '<p class="muted" style="margin:-2px 0 8px;">ℹ️ Carte, suggestions et distance indisponibles sur ce lien hébergé — pleinement fonctionnelles dans le fichier téléchargé.</p>' : '<div id="route-map"></div><div id="route-info" class="muted"></div>') +
+      '<div id="route-map"></div><div id="route-info" class="muted"></div>' +
       '<div class="grid2">' +
         '<input class="field" id="f-date" type="date" value="' + esc(state._date||"") + '" />' +
         '<select class="field" id="f-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '"' + (state._vehicle === k ? " selected" : "") + '>' + VEHICLES[k] + '</option>'; }).join("") + '</select>' +
@@ -431,23 +587,24 @@ function renderMyTrips() {
 
   if (myTrips.length === 0) h += '<p class="muted">Aucun trajet publié pour l\'instant.</p>';
   myTrips.forEach(function (t) {
-    var tripRes = state.reservations.filter(function (r) { return r.tripId === t.id; });
+    var tripRes = state.reservations.filter(function (r) { return r.trip_id === t.id; });
     h += '<div class="card"><div class="flexwrap">' +
-        '<div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b> <span class="muted">· ' + esc(t.date) + ' · ' + vehicleLabel(t.vehicleType) + '</span><div>' + routeBadgeHtml(t) + '</div></div>' +
+        '<div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b> <span class="muted">· ' + esc(t.date) + ' · ' + vehicleLabel(t.vehicle_type) + '</span><div>' + routeBadgeHtml(t) + '</div></div>' +
         '<div class="muted">' + t.remaining + ' / ' + t.capacity + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
     if (tripRes.length > 0) {
       h += '<div class="reslist">';
       tripRes.forEach(function (r) {
+        var cp = profileById(r.client_id);
         h += '<div class="resitem"><div class="flexwrap">' +
-            '<div><b>' + esc(r.clientName) + '</b> demande ' + r.m3 + ' m³</div>' +
+            '<div><b>' + esc(displayName(cp)) + '</b> ' + verifiedTag(cp) + ' demande ' + r.m3 + ' m³</div>' +
             '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">' + badge(r.status) +
               (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">Valider</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">Refuser</button>' : '') +
               (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">▶ Démarrer le trajet</button>' : '') +
               (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">Marquer livré</button>' : '') +
               '<button class="btn-outline" onclick="toggleThread(\'' + r.id + '\')">💬 Chat</button></div></div>' +
-          ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(r.clientTel) + '</div>' : '') +
+          ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
           progressHtml(r) +
-          (state.openThread === r.id ? chatHtml(r, "sendMessage") : '') + '</div>';
+          (state.openThread === r.id ? chatHtml("reservation", r.id) : '') + '</div>';
       });
       h += '</div>';
     }
@@ -457,29 +614,29 @@ function renderMyTrips() {
 }
 
 function renderClientRequestsForDrivers() {
-  var name = fullName("chauffeur");
+  var name = myId();
   var open = state.requests.filter(function (r) { return r.status === "ouverte"; });
   var h = '<h2>Demandes de trajet postées par des clients</h2>';
   if (open.length === 0) h += '<p class="muted">Aucune demande ouverte pour l\'instant.</p>';
   open.forEach(function (rq) {
-    var myOffer = rq.offers.find(function (o) { return o.driverName === name; });
+    var cp = profileById(rq.client_id);
+    var myOffer = state.offers.find(function (o) { return o.request_id === rq.id && o.driver_id === name; });
     h += '<div class="card"><div class="flexwrap"><div>' +
         '<div><b>' + esc(rq.origin) + ' → ' + esc(rq.destination) + '</b></div>' +
-        '<div class="muted">' + esc(rq.date) + ' · ' + rq.m3Needed + ' m³ souhaités · ' + esc(rq.clientName) + ' ' + verifiedForRequestClient(rq) + '</div>' +
+        '<div class="muted">' + esc(rq.date) + ' · ' + rq.m3_needed + ' m³ souhaités · ' + esc(displayName(cp)) + ' ' + verifiedTag(cp) + '</div>' +
         (rq.note ? '<div class="muted" style="margin-top:3px;">"' + esc(rq.note) + '"</div>' : '') +
         '<div>' + routeBadgeHtml(rq) + '</div></div>' +
-        (myOffer ? badge(myOffer.status) : '<button class="btn btn-amber" onclick="offerOnRequest(\'' + rq.id + '\')">Je suis intéressé</button>') +
+        (myOffer ? badge(myOffer.status) : '<div><select class="field" style="width:auto; display:inline-block; margin:0 6px 0 0;" id="veh-' + rq.id + '">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select><button class="btn btn-amber" style="width:auto;" onclick="offerOnRequest(\'' + rq.id + '\')">Je suis intéressé</button></div>') +
       '</div>';
     if (myOffer) {
-      h += ((myOffer.status === "acceptee") ? '<div class="contact">📞 Contact client : ' + esc(rq.clientTel) + '</div>' : '') +
-        '<div style="margin-top:8px;"><button class="btn-outline" onclick="toggleReqThread(\'' + rq.id + '_' + myOffer.id + '\')">💬 Chat</button></div>' +
-        (state.openReqThread === (rq.id + "_" + myOffer.id) ? chatHtml(Object.assign({}, myOffer, { id: rq.id + "_" + myOffer.id }), "sendReqMessage") : '');
+      h += ((myOffer.status === "acceptee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
+        '<div style="margin-top:8px;"><button class="btn-outline" onclick="toggleReqThread(\'' + myOffer.id + '\')">💬 Chat</button></div>' +
+        (state.openReqThread === myOffer.id ? chatHtml("offer", myOffer.id) : '');
     }
     h += '</div>';
   });
   return h;
 }
-function verifiedForRequestClient(rq) { return rq.clientVerified ? '<span class="verified">✅</span>' : ""; }
 
 function renderClient() {
   var h = subtabsHtml("client");
@@ -488,7 +645,7 @@ function renderClient() {
 }
 
 function renderBrowseTrips() {
-  var name = fullName("client");
+  var name = myId();
   var h = '<input class="field" id="searchInput" placeholder="Rechercher un trajet (ville de départ ou d\'arrivée)" value="' + esc(state.search) + '" oninput="state.search=this.value; render(); var el=document.getElementById(\'searchInput\'); el.focus(); el.selectionStart=el.value.length;" />';
   h += '<div class="toprow"><h2 style="margin:0;">Trajets disponibles</h2>' +
     '<select class="field" style="width:auto; margin:0;" onchange="state.sortBy=this.value; render();">' +
@@ -501,9 +658,10 @@ function renderBrowseTrips() {
 
   if (available.length === 0) h += '<p class="muted">Aucun trajet disponible pour le moment.</p>';
   available.forEach(function (t) {
-    var stats = driverStats(t.driverName);
+    var dp = profileById(t.driver_id);
+    var stats = driverStats(t.driver_id);
     h += '<div class="card"><div class="flexwrap"><div><div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b></div>' +
-        '<div class="muted">' + esc(t.date) + ' · ' + esc(t.driverName) + ' ' + (t.driverVerified ? '<span class="verified">✅</span>' : '') + ' · ' + vehicleLabel(t.vehicleType) + ' · ' + t.remaining + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div>' +
+        '<div class="muted">' + esc(t.date) + ' · ' + esc(displayName(dp)) + ' ' + verifiedTag(dp) + ' · ' + vehicleLabel(t.vehicle_type) + ' · ' + t.remaining + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div>' +
         '<div style="margin-top:3px; font-size:12px;">' + starsDisplay(stats.avg, stats.count) + tierBadge(stats.delivered) + '</div>' +
         '<div>' + routeBadgeHtml(t) + '</div></div>' +
         '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">Réserver</button></div>';
@@ -511,31 +669,31 @@ function renderBrowseTrips() {
       h += '<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">' +
         '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="m³ souhaités" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
         ' <span class="muted" id="estimate-txt"></span><br/>' +
-        '<button class="btn btn-amber" onclick="submitReservation(\'' + t.id + '\')">Envoyer la demande</button>' +
+        '<button class="btn btn-amber" style="width:auto;" onclick="submitReservation(\'' + t.id + '\')">Envoyer la demande</button>' +
         (state.reserveError ? '<div class="error">' + esc(state.reserveError) + '</div>' : '') + '</div>';
     }
     h += '</div>';
   });
 
-  var myRes = state.reservations.filter(function (r) { return r.clientName === name; });
+  var myRes = state.reservations.filter(function (r) { return r.client_id === name; });
   h += '<h2>Mes réservations</h2>';
   if (myRes.length === 0) h += '<p class="muted">Aucune réservation pour l\'instant.</p>'; else h += ratingHint();
   myRes.forEach(function (r) {
-    var t = tripOf(r.tripId);
-    h += '<div class="card"><div class="flexwrap"><div><b>' + tripLabel(r.tripId) + '</b> · ' + r.m3 + ' m³</div>' +
+    var t = tripOf(r.trip_id); var dp = t ? profileById(t.driver_id) : null;
+    h += '<div class="card"><div class="flexwrap"><div><b>' + tripLabel(r.trip_id) + '</b> · ' + r.m3 + ' m³</div>' +
         '<div style="display:flex; gap:6px; align-items:center;">' + badge(r.status) +
           (r.status === "en_attente" ? '<button class="btn-outline" onclick="decide(\'' + r.id + '\',\'annulee\')">Annuler</button>' : '') +
           '<button class="btn-outline" onclick="toggleThread(\'' + r.id + '\')">💬 Chat</button></div></div>' +
-      ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") && t ? '<div class="contact">📞 Contact chauffeur : ' + esc(t.driverTel) + '</div>' : '') +
+      ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") && dp ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp.tel) + '</div>' : '') +
       (t ? '<div>' + routeBadgeHtml(t) + '</div>' : '') + progressHtml(r) +
       (r.status === "terminee" ? co2Html(r, t) + ratingWidget(r) : '') +
-      (state.openThread === r.id ? chatHtml(r, "sendMessage") : '') + '</div>';
+      (state.openThread === r.id ? chatHtml("reservation", r.id) : '') + '</div>';
   });
   return h;
 }
 
 function renderMyRequests() {
-  var name = fullName("client");
+  var name = myId();
   var h = '<div class="toprow"><h2 style="margin:0;">Mes demandes de trajet</h2><button class="btn btn-dark" onclick="toggleNewRequest()">+ Poster une demande</button></div>';
 
   if (state.showNewRequest) {
@@ -546,6 +704,7 @@ function renderMyRequests() {
       '<div class="suggestions" id="sugg-r-origin"></div></div>' +
       '<div class="addr-wrap"><input class="field" id="r-dest" placeholder="Arrivée" value="' + esc(state._rDest||"") + '" oninput="onAddressInput(\'r-dest\')" onblur="hideSuggestionsLater(\'r-dest\')" autocomplete="off" />' +
         '<div class="suggestions" id="sugg-r-dest"></div></div>' +
+      '<div id="route-map"></div><div id="route-info" class="muted"></div>' +
       '<input class="field" id="r-date" type="date" value="' + esc(state._rDate||"") + '" />' +
       '<input class="field" id="r-m3" type="number" min="1" placeholder="m³ nécessaires" value="' + esc(state._rM3||"") + '" />' +
       '<input class="field" id="r-note" placeholder="Note pour les chauffeurs (optionnel)" value="' + esc(state._rNote||"") + '" />' +
@@ -553,20 +712,22 @@ function renderMyRequests() {
       (state.reqError ? '<div class="error">' + esc(state.reqError) + '</div>' : '') + '</div>';
   }
 
-  var myReq = state.requests.filter(function (r) { return r.clientName === name; });
+  var myReq = state.requests.filter(function (r) { return r.client_id === name; });
   if (myReq.length === 0) h += '<p class="muted">Aucune demande postée pour l\'instant. Publie une demande pour que des chauffeurs disponibles te contactent directement.</p>';
   myReq.forEach(function (rq) {
-    h += '<div class="card"><div class="flexwrap"><div><b>' + esc(rq.origin) + ' → ' + esc(rq.destination) + '</b> <span class="muted">· ' + esc(rq.date) + ' · ' + rq.m3Needed + ' m³</span><div>' + routeBadgeHtml(rq) + '</div></div>' + badge(rq.status) + '</div>';
-    if (rq.offers.length === 0) h += '<p class="muted" style="margin-top:8px;">Aucune proposition de chauffeur pour l\'instant.</p>';
+    h += '<div class="card"><div class="flexwrap"><div><b>' + esc(rq.origin) + ' → ' + esc(rq.destination) + '</b> <span class="muted">· ' + esc(rq.date) + ' · ' + rq.m3_needed + ' m³</span><div>' + routeBadgeHtml(rq) + '</div></div>' + badge(rq.status) + '</div>';
+    var myOffers = state.offers.filter(function (o) { return o.request_id === rq.id; });
+    if (myOffers.length === 0) h += '<p class="muted" style="margin-top:8px;">Aucune proposition de chauffeur pour l\'instant.</p>';
     else {
       h += '<div class="reslist">';
-      rq.offers.forEach(function (o) {
-        h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(o.driverName) + '</b> · ' + vehicleLabel(o.vehicleType) + '</div>' +
+      myOffers.forEach(function (o) {
+        var dp = profileById(o.driver_id);
+        h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(displayName(dp)) + '</b> ' + verifiedTag(dp) + ' · ' + vehicleLabel(o.vehicle_type) + '</div>' +
             '<div style="display:flex; gap:6px; align-items:center;">' + badge(o.status) +
               (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')">Accepter</button>' : '') +
-              '<button class="btn-outline" onclick="toggleReqThread(\'' + rq.id + '_' + o.id + '\')">💬 Chat</button></div></div>' +
-          (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(o.driverTel) + '</div>' : '') +
-          (state.openReqThread === (rq.id + "_" + o.id) ? chatHtml(Object.assign({}, o, { id: rq.id + "_" + o.id }), "sendReqMessage") : '') + '</div>';
+              '<button class="btn-outline" onclick="toggleReqThread(\'' + o.id + '\')">💬 Chat</button></div></div>' +
+          (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp ? dp.tel : "") + '</div>' : '') +
+          (state.openReqThread === o.id ? chatHtml("offer", o.id) : '') + '</div>';
       });
       h += '</div>';
     }
@@ -580,22 +741,12 @@ function updateEstimate(input, price) {
   span.textContent = (price && m3 > 0) ? ("≈ " + (m3 * price).toLocaleString() + " estimé") : "";
 }
 
-// ================= actions profil =================
-function saveProfile(role) {
-  state.profiles[role].prenom = document.getElementById("p-prenom").value;
-  state.profiles[role].nom = document.getElementById("p-nom").value;
-  state.profiles[role].tel = document.getElementById("p-tel").value;
-  state.profiles[role].verified = document.getElementById("p-verified").checked;
-  state.editingProfile = false; render(); showToast("Profil enregistré", "ok");
-}
-
-// ================= actions trajets =================
+// ================= actions =================
 function toggleNewTrip() { state.showNewTrip = !state.showNewTrip; state.tripError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
 function toggleReserve(id) { state.reserveFor = state.reserveFor === id ? null : id; state.reserveError = ""; render(); }
-function toggleThread(id) { state.openThread = state.openThread === id ? null : id; render(); }
-function toggleReqThread(id) { state.openReqThread = state.openReqThread === id ? null : id; render(); }
+function toggleNewRequest() { state.showNewRequest = !state.showNewRequest; state.reqError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
 
-function publishTrip() {
+async function publishTrip() {
   state._origin = document.getElementById("f-origin").value;
   state._dest = document.getElementById("f-dest").value;
   state._date = document.getElementById("f-date").value;
@@ -603,105 +754,92 @@ function publishTrip() {
   state._price = document.getElementById("f-price").value;
   state._vehicle = document.getElementById("f-vehicle").value;
   if (!state._origin || !state._dest || !state._date || !state._cap) { state.tripError = "Départ, arrivée, date et capacité sont obligatoires."; render(); return; }
-  var p = state.profiles.chauffeur;
-  state.trips.unshift({
-    id: uid(), driverName: fullName("chauffeur"), driverTel: p.tel, driverVerified: p.verified,
-    origin: state._origin.trim(), destination: state._dest.trim(), date: state._date, vehicleType: state._vehicle,
+  var row = {
+    driver_id: myId(), origin: state._origin.trim(), destination: state._dest.trim(), date: state._date, vehicle_type: state._vehicle,
     capacity: Number(state._cap), remaining: Number(state._cap), price: state._price ? Number(state._price) : null,
-    originLat: coords.origin ? coords.origin.lat : null, originLon: coords.origin ? coords.origin.lon : null,
-    destLat: coords.dest ? coords.dest.lat : null, destLon: coords.dest ? coords.dest.lon : null,
-    distanceKm: routeInfo ? routeInfo.distanceKm : null, durationMin: routeInfo ? routeInfo.durationMin : null
-  });
+    origin_lat: coords.origin ? coords.origin.lat : null, origin_lon: coords.origin ? coords.origin.lon : null,
+    dest_lat: coords.dest ? coords.dest.lat : null, dest_lon: coords.dest ? coords.dest.lon : null,
+    distance_km: routeInfo ? routeInfo.distanceKm : null, duration_min: routeInfo ? routeInfo.durationMin : null
+  };
+  var { error } = await sb.from("trips").insert(row);
+  if (error) { state.tripError = error.message; render(); return; }
   state.showNewTrip = false; state.tripError = "";
   state._origin = state._dest = state._date = state._cap = state._price = "";
   coords = { origin: null, dest: null }; routeInfo = null;
-  saveTrips(); render(); showToast("Trajet publié 🚚", "ok");
+  await loadAllData(); render(); showToast("Trajet publié 🚚", "ok");
 }
 
-function submitReservation(tripId) {
+async function submitReservation(tripId) {
   var t = tripOf(tripId);
   state._reserveM3 = document.getElementById("f-m3").value;
   if (!state._reserveM3 || Number(state._reserveM3) <= 0) { state.reserveError = "Indiquez un nombre de m³ valide."; render(); return; }
   if (Number(state._reserveM3) > t.remaining) { state.reserveError = "Seulement " + t.remaining + " m³ disponibles sur ce trajet."; render(); return; }
-  var p = state.profiles.client;
-  state.reservations.unshift({ id: uid(), tripId: tripId, clientName: fullName("client"), clientTel: p.tel, m3: Number(state._reserveM3), status: "en_attente", messages: [], rating: null });
+  var { error } = await sb.from("reservations").insert({ trip_id: tripId, client_id: myId(), m3: Number(state._reserveM3), status: "en_attente" });
+  if (error) { state.reserveError = error.message; render(); return; }
   state.reserveFor = null; state.reserveError = ""; state._reserveM3 = "";
-  saveReservations(); render(); showToast("Demande envoyée", "ok");
+  await loadAllData(); render(); showToast("Demande envoyée", "ok");
 }
 
-function decide(resId, status) {
+async function decide(resId, status) {
   var r = state.reservations.find(function (x) { return x.id === resId; });
   var wasValidated = r.status === "validee" || r.status === "en_route" || r.status === "terminee";
-  r.status = status;
-  if (status === "validee" && !wasValidated) { var t = tripOf(r.tripId); t.remaining = Math.max(0, t.remaining - r.m3); saveTrips(); }
-  saveReservations(); render();
+  var { error } = await sb.from("reservations").update({ status: status }).eq("id", resId);
+  if (error) { showToast(error.message, "err"); return; }
+  if (status === "validee" && !wasValidated) {
+    var t = tripOf(r.trip_id);
+    await sb.from("trips").update({ remaining: Math.max(0, t.remaining - r.m3) }).eq("id", t.id);
+  }
+  await loadAllData(); render();
   var labels = { validee: "Réservation validée ✅", refusee: "Réservation refusée", terminee: "Livraison marquée 📦", annulee: "Réservation annulée" };
   showToast(labels[status] || "Mis à jour");
 }
-function rateReservation(resId, stars) { var r = state.reservations.find(function (x) { return x.id === resId; }); r.rating = stars; saveReservations(); render(); showToast("Merci pour votre avis ⭐"); }
-function sendMessage(resId) {
-  var input = document.getElementById("chatinput-" + resId); var text = input.value.trim(); if (!text) return;
-  var r = state.reservations.find(function (x) { return x.id === resId; });
-  r.messages.push({ from: fullName(state.role) || "anonyme", text: text, ts: Date.now() });
-  saveReservations(); render();
+async function rateReservation(resId, stars) {
+  var { error } = await sb.from("reservations").update({ rating: stars }).eq("id", resId);
+  if (error) { showToast(error.message, "err"); return; }
+  await loadAllData(); render(); showToast("Merci pour votre avis ⭐");
 }
 
-// ================= actions demandes clients =================
-function toggleNewRequest() { state.showNewRequest = !state.showNewRequest; state.reqError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
-function publishRequest() {
+async function publishRequest() {
   state._rOrigin = document.getElementById("r-origin").value;
   state._rDest = document.getElementById("r-dest").value;
   state._rDate = document.getElementById("r-date").value;
   state._rM3 = document.getElementById("r-m3").value;
   state._rNote = document.getElementById("r-note").value;
   if (!state._rOrigin || !state._rDest || !state._rDate || !state._rM3) { state.reqError = "Départ, arrivée, date et m³ sont obligatoires."; render(); return; }
-  var p = state.profiles.client;
-  state.requests.unshift({
-    id: uid(), clientName: fullName("client"), clientTel: p.tel, clientVerified: p.verified,
-    origin: state._rOrigin.trim(), destination: state._rDest.trim(), date: state._rDate, m3Needed: Number(state._rM3), note: state._rNote.trim(),
-    originLat: coords.origin ? coords.origin.lat : null, originLon: coords.origin ? coords.origin.lon : null,
-    destLat: coords.dest ? coords.dest.lat : null, destLon: coords.dest ? coords.dest.lon : null,
-    distanceKm: routeInfo ? routeInfo.distanceKm : null, durationMin: routeInfo ? routeInfo.durationMin : null,
-    status: "ouverte", offers: []
-  });
+  var row = {
+    client_id: myId(), origin: state._rOrigin.trim(), destination: state._rDest.trim(), date: state._rDate, m3_needed: Number(state._rM3), note: state._rNote.trim(),
+    origin_lat: coords.origin ? coords.origin.lat : null, origin_lon: coords.origin ? coords.origin.lon : null,
+    dest_lat: coords.dest ? coords.dest.lat : null, dest_lon: coords.dest ? coords.dest.lon : null,
+    distance_km: routeInfo ? routeInfo.distanceKm : null, duration_min: routeInfo ? routeInfo.durationMin : null, status: "ouverte"
+  };
+  var { error } = await sb.from("requests").insert(row);
+  if (error) { state.reqError = error.message; render(); return; }
   state.showNewRequest = false; state.reqError = "";
   state._rOrigin = state._rDest = state._rDate = state._rM3 = state._rNote = "";
   coords = { origin: null, dest: null }; routeInfo = null;
-  saveRequests(); render(); showToast("Demande publiée 📢", "ok");
+  await loadAllData(); render(); showToast("Demande publiée 📢", "ok");
 }
-function offerOnRequest(reqId) {
-  var rq = requestOf(reqId); var p = state.profiles.chauffeur;
-  rq.offers.push({ id: uid(), driverName: fullName("chauffeur"), driverTel: p.tel, vehicleType: state._vehicle || "bache", status: "proposee", messages: [] });
-  saveRequests(); render(); showToast("Proposition envoyée");
+async function offerOnRequest(reqId) {
+  var vehSel = document.getElementById("veh-" + reqId);
+  var vehicle = vehSel ? vehSel.value : "bache";
+  var { error } = await sb.from("request_offers").insert({ request_id: reqId, driver_id: myId(), vehicle_type: vehicle, status: "proposee" });
+  if (error) { showToast(error.message, "err"); return; }
+  await loadAllData(); render(); showToast("Proposition envoyée");
 }
-function acceptOffer(reqId, offerId) {
-  var rq = requestOf(reqId);
-  rq.offers.forEach(function (o) { o.status = (o.id === offerId) ? "acceptee" : (o.status === "proposee" ? "refusee" : o.status); });
-  rq.status = "prise_en_charge";
-  saveRequests(); render(); showToast("Chauffeur accepté ✅", "ok");
+async function acceptOffer(reqId, offerId) {
+  var offersForReq = state.offers.filter(function (o) { return o.request_id === reqId; });
+  await Promise.all(offersForReq.map(function (o) {
+    var newStatus = (o.id === offerId) ? "acceptee" : (o.status === "proposee" ? "refusee" : o.status);
+    return sb.from("request_offers").update({ status: newStatus }).eq("id", o.id);
+  }));
+  await sb.from("requests").update({ status: "prise_en_charge" }).eq("id", reqId);
+  await loadAllData(); render(); showToast("Chauffeur accepté ✅", "ok");
 }
-function sendReqMessage(compositeId) {
-  var parts = compositeId.split("_"); var reqId = parts[0], offerId = parts.length > 1 ? parts[1] : null;
-  var rq = requestOf(reqId); if (!rq) return;
-  var input = document.getElementById("chatinput-" + compositeId); if (!input) return;
-  var text = input.value.trim(); if (!text) return;
-  var target = offerId ? rq.offers.find(function (o) { return o.id === offerId; }) : rq.offers.find(function (o) { return o.driverName === fullName("chauffeur"); });
-  if (!target) return;
-  target.messages.push({ from: fullName(state.role) || "anonyme", text: text, ts: Date.now() });
-  saveRequests(); render();
-}
-function sendOfferMessage(compositeId) { sendReqMessage(compositeId); }
-
-function refreshFromStorage() { state.trips = loadTrips(); state.reservations = loadReservations(); state.requests = loadRequests(); render(); }
 
 // ================= init =================
-document.getElementById("tabClient").addEventListener("click", function () { state.role = "client"; state.editingProfile = false; render(); });
-document.getElementById("tabChauffeur").addEventListener("click", function () { state.role = "chauffeur"; state.editingProfile = false; render(); });
-window.addEventListener("storage", function (e) { if (e.key === TRIPS_KEY || e.key === RES_KEY || e.key === REQ_KEY) refreshFromStorage(); });
-
-state.trips = loadTrips(); state.reservations = loadReservations(); state.requests = loadRequests();
-render();
-if (syncError) document.getElementById("app").insertAdjacentHTML("afterbegin", '<div class="notice" style="background:#fee2e2; border-color:#fecaca; color:#991b1b;">Stockage local indisponible — chaque onglet reste indépendant.</div>');
+document.getElementById("tabClient").addEventListener("click", function () { state.role = "client"; render(); });
+document.getElementById("tabChauffeur").addEventListener("click", function () { state.role = "chauffeur"; render(); });
+initAuth();
 </script>
 </body>
 </html>
