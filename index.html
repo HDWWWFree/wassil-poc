@@ -157,11 +157,12 @@ function esc(s) { var d = document.createElement("div"); d.textContent = s == nu
 
 // ================= état =================
 var state = {
-  session: null, myProfile: null, profilesById: {},
+  session: null, myProfile: null, myDriverProfile: null, profilesById: {},
   trips: [], reservations: [], requests: [], offers: [],
   role: "client", clientSubTab: "browse", chauffeurSubTab: "mytrips",
   authMode: "login", authError: "", authBusy: false,
   editingProfile: false, profileError: "",
+  showDriverOnboarding: false, driverError: "",
   search: "", sortBy: "date",
   showNewTrip: false, showNewRequest: false,
   reserveFor: null, openThread: null, openReqThread: null,
@@ -274,7 +275,7 @@ async function initAuth() {
 async function onAuthChange() {
   if (state.session) {
     await loadMyProfile();
-    if (state.myProfile) { await loadAllData(); subscribeRealtime(); }
+    if (state.myProfile) { await loadMyDriverProfile(); await loadAllData(); subscribeRealtime(); }
   } else {
     state.myProfile = null;
     if (dataChannel) { sb.removeChannel(dataChannel); dataChannel = null; }
@@ -308,6 +309,24 @@ async function loadMyProfile() {
   var { data } = await sb.from("profiles").select("*").eq("id", myId()).maybeSingle();
   state.myProfile = data || null;
 }
+async function loadMyDriverProfile() {
+  var { data } = await sb.from("driver_profiles").select("*").eq("id", myId()).maybeSingle();
+  state.myDriverProfile = data || null;
+}
+async function saveDriverProfile() {
+  var license = document.getElementById("d-license").value.trim();
+  var plate = document.getElementById("d-plate").value.trim();
+  var vehicle = document.getElementById("d-vehicle").value;
+  if (!license || !plate) { state.driverError = "N° de permis et plaque d'immatriculation sont obligatoires."; render(); return; }
+  var row = { id: myId(), license_number: license, plate: plate, vehicle_type: vehicle };
+  var { error } = await sb.from("driver_profiles").upsert(row);
+  if (error) { state.driverError = error.message; render(); return; }
+  await sb.from("profiles").update({ driver_verified: true }).eq("id", myId());
+  state.myDriverProfile = row; state.myProfile.driver_verified = true;
+  state.showDriverOnboarding = false; state.driverError = "";
+  await loadAllData(); render(); showToast("Profil chauffeur complété ✅", "ok");
+}
+function driverVerifiedTag(p) { return p && p.driver_verified ? '<span class="verified">🚚 Chauffeur vérifié</span>' : ""; }
 async function saveProfileToDb() {
   var prenom = document.getElementById("p-prenom").value.trim();
   var nom = document.getElementById("p-nom").value.trim();
@@ -318,7 +337,7 @@ async function saveProfileToDb() {
   var { error } = await sb.from("profiles").upsert(row);
   if (error) { state.profileError = error.message; render(); return; }
   state.myProfile = row; state.editingProfile = false; state.profileError = "";
-  await loadAllData(); subscribeRealtime();
+  await loadMyDriverProfile(); await loadAllData(); subscribeRealtime();
   render(); showToast("Profil enregistré", "ok");
 }
 
@@ -534,6 +553,17 @@ function renderProfileSetup() {
   document.getElementById("app").innerHTML = h;
 }
 
+function driverOnboardingHtml() {
+  return '<div class="card">' +
+    '<div style="font-weight:700; margin-bottom:2px;">🚚 Devenir chauffeur vérifié</div>' +
+    '<p class="muted" style="margin-top:0;">Obligatoire une seule fois avant de publier un trajet ou répondre à une demande client.</p>' +
+    '<input class="field" id="d-license" placeholder="N° de permis de conduire" />' +
+    '<input class="field" id="d-plate" placeholder="Plaque d\'immatriculation" />' +
+    '<select class="field" id="d-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select>' +
+    '<button class="btn btn-amber" onclick="saveDriverProfile()">Valider mon profil chauffeur</button>' +
+    (state.driverError ? '<div class="error">' + esc(state.driverError) + '</div>' : '') + '</div>';
+}
+
 function subtabsHtml(which) {
   if (which === "chauffeur") {
     return '<div class="subtabs">' +
@@ -566,7 +596,9 @@ function renderMyTrips() {
 
   h += '<div class="toprow"><h2 style="margin:0;">Mes trajets</h2><button class="btn btn-dark" onclick="toggleNewTrip()">+ Publier une dispo</button></div>';
 
-  if (state.showNewTrip) {
+  if (state.showDriverOnboarding) h += driverOnboardingHtml();
+
+  if (state.showNewTrip && state.myDriverProfile) {
     h += '<div class="card">' +
       '<div class="addr-wrap"><div class="addr-row">' +
         '<input class="field" id="f-origin" placeholder="Départ" value="' + esc(state._origin||"") + '" oninput="onAddressInput(\'f-origin\')" onblur="hideSuggestionsLater(\'f-origin\')" autocomplete="off" />' +
@@ -617,6 +649,7 @@ function renderClientRequestsForDrivers() {
   var name = myId();
   var open = state.requests.filter(function (r) { return r.status === "ouverte"; });
   var h = '<h2>Demandes de trajet postées par des clients</h2>';
+  if (state.showDriverOnboarding) h += driverOnboardingHtml();
   if (open.length === 0) h += '<p class="muted">Aucune demande ouverte pour l\'instant.</p>';
   open.forEach(function (rq) {
     var cp = profileById(rq.client_id);
@@ -661,7 +694,7 @@ function renderBrowseTrips() {
     var dp = profileById(t.driver_id);
     var stats = driverStats(t.driver_id);
     h += '<div class="card"><div class="flexwrap"><div><div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b></div>' +
-        '<div class="muted">' + esc(t.date) + ' · ' + esc(displayName(dp)) + ' ' + verifiedTag(dp) + ' · ' + vehicleLabel(t.vehicle_type) + ' · ' + t.remaining + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div>' +
+        '<div class="muted">' + esc(t.date) + ' · ' + esc(displayName(dp)) + ' ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + ' · ' + vehicleLabel(t.vehicle_type) + ' · ' + t.remaining + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div>' +
         '<div style="margin-top:3px; font-size:12px;">' + starsDisplay(stats.avg, stats.count) + tierBadge(stats.delivered) + '</div>' +
         '<div>' + routeBadgeHtml(t) + '</div></div>' +
         '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">Réserver</button></div>';
@@ -722,7 +755,7 @@ function renderMyRequests() {
       h += '<div class="reslist">';
       myOffers.forEach(function (o) {
         var dp = profileById(o.driver_id);
-        h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(displayName(dp)) + '</b> ' + verifiedTag(dp) + ' · ' + vehicleLabel(o.vehicle_type) + '</div>' +
+        h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(displayName(dp)) + '</b> ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + ' · ' + vehicleLabel(o.vehicle_type) + '</div>' +
             '<div style="display:flex; gap:6px; align-items:center;">' + badge(o.status) +
               (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')">Accepter</button>' : '') +
               '<button class="btn-outline" onclick="toggleReqThread(\'' + o.id + '\')">💬 Chat</button></div></div>' +
@@ -742,7 +775,10 @@ function updateEstimate(input, price) {
 }
 
 // ================= actions =================
-function toggleNewTrip() { state.showNewTrip = !state.showNewTrip; state.tripError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
+function toggleNewTrip() {
+  if (!state.myDriverProfile) { state.showDriverOnboarding = !state.showDriverOnboarding; state.driverError = ""; render(); return; }
+  state.showNewTrip = !state.showNewTrip; state.tripError = ""; coords = { origin: null, dest: null }; routeInfo = null; render();
+}
 function toggleReserve(id) { state.reserveFor = state.reserveFor === id ? null : id; state.reserveError = ""; render(); }
 function toggleNewRequest() { state.showNewRequest = !state.showNewRequest; state.reqError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
 
@@ -820,6 +856,7 @@ async function publishRequest() {
   await loadAllData(); render(); showToast("Demande publiée 📢", "ok");
 }
 async function offerOnRequest(reqId) {
+  if (!state.myDriverProfile) { state.showDriverOnboarding = true; render(); return; }
   var vehSel = document.getElementById("veh-" + reqId);
   var vehicle = vehSel ? vehSel.value : "bache";
   var { error } = await sb.from("request_offers").insert({ request_id: reqId, driver_id: myId(), vehicle_type: vehicle, status: "proposee" });
