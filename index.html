@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wassil — réservation de capacité camion</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --bg: #f3f2ef; --card: #fff; --border: #ebe9e6; --text: #1c1917; --muted: #78716c;
+    --header1: #0b1120; --header2: #16213a; --amber: #f59e0b; --field: #fdfcfb; --fieldborder: #ded9d4;
+  }
+  [data-theme="dark"] {
+    --bg: #14120f; --card: #1f1c18; --border: #322e28; --text: #f2f0ec; --muted: #a39c93;
+    --header1: #05070d; --header2: #0e1524; --field: #26221d; --fieldborder: #3a352d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 74px; transition: background .2s, color .2s; }
+  a { color: inherit; }
+  header { background: linear-gradient(135deg, var(--header1), var(--header2)); color: #f1f5f9; padding: 16px 18px 14px; position: sticky; top: 0; z-index: 40; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+  header .row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; max-width: 780px; margin: 0 auto; }
+  header .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 18px; letter-spacing: -0.2px; }
+  header .brand .tagline { font-weight: 400; font-size: 11.5px; color: #94a3b8; display: block; margin-top: 1px; }
+  .idbox { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #cbd5e1; background: rgba(255,255,255,.06); padding: 5px 10px; border-radius: 20px; }
+  .idbox .dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; }
+  .theme-btn { background: rgba(255,255,255,.08); border: none; color: #f1f5f9; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; }
+
+  main { max-width: 780px; margin: 0 auto; padding: 16px; }
+  .notice { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 9px 13px; border-radius: 10px; font-size: 13px; margin-bottom: 14px; }
+  [data-theme="dark"] .notice { background: #3a2f10; border-color: #5c4a14; color: #fbbf24; }
+  h2 { font-size: 14.5px; font-weight: 700; margin: 20px 0 10px; color: var(--text); text-transform: uppercase; letter-spacing: .4px; }
+  .toprow { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .btn { border: none; cursor: pointer; padding: 8px 15px; border-radius: 9px; font-size: 14px; transition: transform .08s ease; }
+  .btn:active { transform: scale(0.97); }
+  .btn-dark { background: #0f172a; color: #f1f5f9; }
+  .btn-amber { background: linear-gradient(135deg, #f59e0b, #ea9c1b); color: #1c1917; font-weight: 700; box-shadow: 0 2px 8px rgba(245,158,11,.35); }
+  .btn-outline { background: var(--card); border: 1px solid var(--fieldborder); color: var(--muted); font-size: 12px; padding: 5px 11px; cursor: pointer; border-radius: 7px; }
+  .btn-ok { background: #d1fae5; color: #065f46; font-size: 12px; padding: 5px 11px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; }
+  .btn-no { background: #fee2e2; color: #991b1b; font-size: 12px; padding: 5px 11px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; }
+  .btn-info { background: #dbeafe; color: #1e40af; font-size: 12px; padding: 5px 11px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; }
+  .btn-purple { background: #ede9fe; color: #5b21b6; font-size: 12px; padding: 5px 11px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; }
+
+  .subtabs { display: flex; gap: 6px; margin-bottom: 14px; background: var(--border); padding: 4px; border-radius: 10px; }
+  .subtabs button { flex: 1; border: none; background: transparent; padding: 8px 6px; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .subtabs button.active { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 15px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.03); animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .field { border: 1px solid var(--fieldborder); border-radius: 8px; padding: 8px 11px; font-size: 14px; width: 100%; margin-bottom: 8px; background: var(--field); color: var(--text); }
+  .field:focus { outline: 2px solid #f59e0b33; border-color: #f59e0b; }
+  select.field { -webkit-appearance:none; appearance:none; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .error { color: #dc2626; font-size: 12px; margin-top: 6px; }
+  .badge { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: .3px; }
+  .badge-wait { background: #fef3c7; color: #92400e; }
+  .badge-ok { background: #d1fae5; color: #065f46; }
+  .badge-no { background: #fee2e2; color: #991b1b; }
+  .badge-done { background: #dbeafe; color: #1e40af; }
+  .badge-cancel { background: #e7e5e4; color: #57534e; }
+  .badge-route { background: #ede9fe; color: #5b21b6; }
+  .verified { color: #059669; font-size: 11px; font-weight: 700; }
+  .reslist { border-top: 1px dashed var(--border); margin-top: 11px; padding-top: 11px; }
+  .resitem { background: var(--bg); border-radius: 10px; padding: 11px; margin-bottom: 8px; }
+  .flexwrap { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .msg { font-size: 12px; margin-bottom: 3px; }
+  .chatbox { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
+  .chatinput { display: flex; gap: 6px; }
+  .chatinput input { flex: 1; border: 1px solid var(--fieldborder); border-radius: 7px; padding: 6px 9px; font-size: 12px; background: var(--field); color: var(--text); }
+  .chatinput button { background: #0f172a; color: #fff; border: none; border-radius: 7px; padding: 6px 11px; font-size: 12px; cursor: pointer; }
+  .footer-note { font-size: 11px; color: var(--muted); margin-top: 26px; line-height: 1.5; }
+  .profilebar { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 13px 15px; margin-bottom: 14px; }
+  .profilebar .summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: #0f172a; color: #f59e0b; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; margin-right: 9px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat .num { font-size: 18px; font-weight: 800; color: var(--text); }
+  .stat .lbl { font-size: 10.5px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .3px; }
+  .stars { font-size: 17px; color: #f59e0b; cursor: pointer; letter-spacing: 2px; }
+  .contact { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 8px; padding: 7px 11px; font-size: 12px; margin-top: 8px; }
+  [data-theme="dark"] .contact { background: #16233d; border-color: #1e3a5f; color: #93c5fd; }
+  .route-badge { display: inline-flex; align-items: center; gap: 5px; background: var(--bg); border-radius: 20px; padding: 3px 10px; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+  .route-link { font-size: 11.5px; color: #2563eb; text-decoration: none; font-weight: 600; margin-left: 6px; }
+  .co2 { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; border-radius: 8px; padding: 6px 10px; font-size: 11.5px; margin-top: 8px; }
+  [data-theme="dark"] .co2 { background: #082f24; border-color: #115e42; color: #6ee7b7; }
+  .tier { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #fef3c7; color: #92400e; margin-left: 6px; }
+
+  .addr-wrap { position: relative; margin-bottom: 8px; }
+  .addr-wrap .field { margin-bottom: 0; }
+  .addr-row { display: flex; gap: 6px; align-items: center; }
+  .geo-btn { background: #0f172a; color: #f59e0b; border: none; border-radius: 8px; width: 38px; height: 36px; flex-shrink: 0; cursor: pointer; font-size: 15px; }
+  .suggestions { position: absolute; z-index: 9999; background: var(--card); border: 1px solid var(--fieldborder); border-radius: 8px; margin-top: 3px; left: 0; right: 0; max-height: 170px; overflow-y: auto; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+  .suggestion-item { padding: 8px 11px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .suggestion-item:hover { background: var(--bg); }
+  #route-map { height: 170px; border-radius: 10px; margin: 4px 0 10px; border: 1px solid var(--fieldborder); }
+  #route-info { font-size: 12.5px; color: var(--text); margin-bottom: 8px; }
+
+  .progress-outer { background: var(--border); border-radius: 20px; height: 8px; overflow: hidden; margin: 8px 0 4px; }
+  .progress-inner { background: linear-gradient(90deg, #f59e0b, #fbbf24); height: 100%; width: 0%; transition: width 1s linear; }
+  .eta-text { font-size: 12px; color: var(--muted); }
+
+  nav.bottomnav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--border); display: flex; z-index: 50; box-shadow: 0 -2px 10px rgba(0,0,0,.05); }
+  nav.bottomnav button { flex: 1; border: none; background: none; padding: 10px 0 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  nav.bottomnav button .ic { font-size: 19px; }
+  nav.bottomnav button.active { color: var(--text); font-weight: 700; }
+  nav.bottomnav .dot { position: absolute; top: 5px; right: calc(50% - 20px); background: #dc2626; color: #fff; font-size: 9.5px; font-weight: 700; border-radius: 8px; min-width: 15px; height: 15px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+
+  .toast-wrap { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .toast { background: #1c1917; color: #fff; font-size: 13px; padding: 9px 16px; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.25); animation: toastin .2s ease; max-width: 90vw; }
+  .toast.err { background: #991b1b; }
+  .toast.ok { background: #065f46; }
+  @keyframes toastin { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div class="toast-wrap" id="toastWrap"></div>
+<header>
+  <div class="row">
+    <div class="brand">🚚 Wassil<span class="tagline">réservation de capacité camion</span></div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div class="idbox" id="idbox"><span class="dot"></span><span id="idboxText">—</span></div>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Mode sombre">🌙</button>
+    </div>
+  </div>
+</header>
+<main id="app"></main>
+
+<nav class="bottomnav">
+  <button id="tabClient" class="active"><span class="ic">📦</span>Client</button>
+  <button id="tabChauffeur"><span class="ic">🚚</span>Chauffeur</button>
+</nav>
+
+<script>
+// ================= stockage =================
+var TRIPS_KEY = "wassil_trips", RES_KEY = "wassil_reservations", REQ_KEY = "wassil_requests";
+var syncError = false;
+function loadKey(k) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : []; } catch (e) { syncError = true; return []; } }
+function saveKey(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { syncError = true; } }
+function loadTrips() { return loadKey(TRIPS_KEY); } function saveTrips() { saveKey(TRIPS_KEY, state.trips); }
+function loadReservations() { return loadKey(RES_KEY); } function saveReservations() { saveKey(RES_KEY, state.reservations); }
+function loadRequests() { return loadKey(REQ_KEY); } function saveRequests() { saveKey(REQ_KEY, state.requests); }
+
+// ================= état =================
+var state = {
+  role: "client",
+  clientSubTab: "browse", chauffeurSubTab: "mytrips",
+  profiles: { client: { prenom: "", nom: "", tel: "", verified: false }, chauffeur: { prenom: "", nom: "", tel: "", verified: false } },
+  editingProfile: false,
+  trips: [], reservations: [], requests: [],
+  search: "", sortBy: "date",
+  showNewTrip: false, showNewRequest: false,
+  reserveFor: null, openThread: null, openReqThread: null,
+  tripError: "", reserveError: "", reqError: ""
+};
+
+var VEHICLES = { bache: "🚚 Bâché", frigo: "❄️ Frigorifique", plateau: "📐 Plateau", benne: "🏗️ Benne" };
+function vehicleLabel(v) { return VEHICLES[v] || "🚚 Bâché"; }
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+function fullName(role) { var p = state.profiles[role]; return (p.prenom.trim() + " " + p.nom.trim()).trim(); }
+function profileComplete(role) { var p = state.profiles[role]; return !!(p.prenom.trim() && p.nom.trim() && p.tel.trim()); }
+function initials(role) { var p = state.profiles[role]; return ((p.prenom.trim()[0] || "") + (p.nom.trim()[0] || "")).toUpperCase(); }
+var isHosted = /claude\.ai/.test(location.hostname);
+
+// ================= thème =================
+function toggleTheme() {
+  var el = document.documentElement;
+  var dark = el.getAttribute("data-theme") === "dark";
+  el.setAttribute("data-theme", dark ? "light" : "dark");
+  document.getElementById("themeBtn").textContent = dark ? "🌙" : "☀️";
+}
+
+// ================= toasts =================
+function showToast(msg, type) {
+  var wrap = document.getElementById("toastWrap");
+  var t = document.createElement("div");
+  t.className = "toast" + (type ? " " + type : "");
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(function () { t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(function () { t.remove(); }, 300); }, 2600);
+}
+
+// ================= géoloc & autocomplétion (OSM/Nominatim) =================
+var addressDebounce = {}, lastSuggestions = {}, coords = { origin: null, dest: null };
+function onAddressInput(fieldId) {
+  if (isHosted) return;
+  var val = document.getElementById(fieldId).value;
+  clearTimeout(addressDebounce[fieldId]);
+  if (val.trim().length < 3) { document.getElementById("sugg-" + fieldId).innerHTML = ""; return; }
+  addressDebounce[fieldId] = setTimeout(function () { searchAddress(fieldId, val); }, 350);
+}
+function searchAddress(fieldId, query) {
+  var url = "https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=dz&q=" + encodeURIComponent(query);
+  fetch(url, { headers: { "Accept-Language": "fr" } }).then(function (r) { return r.json(); })
+    .then(function (results) { renderSuggestions(fieldId, results); })
+    .catch(function () { document.getElementById("sugg-" + fieldId).innerHTML = '<div class="suggestion-item muted">Suggestions indisponibles</div>'; });
+}
+function renderSuggestions(fieldId, results) {
+  var box = document.getElementById("sugg-" + fieldId); if (!box) return;
+  if (!results || !results.length) { box.innerHTML = ""; return; }
+  lastSuggestions[fieldId] = results;
+  box.innerHTML = results.map(function (r, i) { return '<div class="suggestion-item" onmousedown="selectAddress(\'' + fieldId + '\',' + i + ')">' + esc(r.display_name) + '</div>'; }).join("");
+}
+function selectAddress(fieldId, idx) {
+  var r = lastSuggestions[fieldId][idx];
+  document.getElementById(fieldId).value = r.display_name;
+  document.getElementById("sugg-" + fieldId).innerHTML = "";
+  var key = (fieldId === "f-origin" || fieldId === "r-origin") ? "origin" : "dest";
+  coords[key] = { lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
+  updateRoutePreview();
+}
+function hideSuggestionsLater(fieldId) { setTimeout(function () { var box = document.getElementById("sugg-" + fieldId); if (box) box.innerHTML = ""; }, 200); }
+function useMyLocation(fieldId, btn) {
+  if (!navigator.geolocation) { showToast("Géolocalisation non supportée.", "err"); return; }
+  btn.textContent = "…";
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    var lat = pos.coords.latitude, lon = pos.coords.longitude;
+    fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lon, { headers: { "Accept-Language": "fr" } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { document.getElementById(fieldId).value = data.display_name || (lat.toFixed(5) + ", " + lon.toFixed(5)); coords.origin = { lat: lat, lon: lon }; btn.textContent = "📍"; updateRoutePreview(); })
+      .catch(function () { document.getElementById(fieldId).value = lat.toFixed(5) + ", " + lon.toFixed(5); coords.origin = { lat: lat, lon: lon }; btn.textContent = "📍"; updateRoutePreview(); });
+  }, function (err) { showToast("Position indisponible : " + err.message, "err"); btn.textContent = "📍"; });
+}
+
+// ================= carte + itinéraire =================
+var routeMap = null, routeLayer = null, routeInfo = null;
+function ensureMap() {
+  var el = document.getElementById("route-map"); if (!el) return null;
+  if (routeMap) { routeMap.remove(); routeMap = null; }
+  routeMap = L.map(el, { zoomControl: false, attributionControl: false }).setView([28.0, 2.5], 4.2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(routeMap);
+  routeLayer = L.layerGroup().addTo(routeMap);
+  return routeMap;
+}
+function updateRoutePreview() {
+  var el = document.getElementById("route-map"); if (!el) return;
+  if (!routeMap) ensureMap();
+  routeLayer.clearLayers();
+  var pts = [];
+  if (coords.origin) { L.marker([coords.origin.lat, coords.origin.lon]).addTo(routeLayer); pts.push([coords.origin.lat, coords.origin.lon]); }
+  if (coords.dest) { L.marker([coords.dest.lat, coords.dest.lon]).addTo(routeLayer); pts.push([coords.dest.lat, coords.dest.lon]); }
+  if (pts.length === 2) { L.polyline(pts, { color: "#f59e0b", weight: 4, opacity: .85 }).addTo(routeLayer); routeMap.fitBounds(pts, { padding: [24, 24] }); fetchRouteInfo(); }
+  else if (pts.length === 1) { routeMap.setView(pts[0], 11); var infoEl = document.getElementById("route-info"); if (infoEl) infoEl.textContent = ""; routeInfo = null; }
+}
+function fetchRouteInfo() {
+  var infoEl = document.getElementById("route-info"); if (infoEl) infoEl.textContent = "Calcul de l'itinéraire…";
+  var url = "https://router.project-osrm.org/route/v1/driving/" + coords.origin.lon + "," + coords.origin.lat + ";" + coords.dest.lon + "," + coords.dest.lat + "?overview=false";
+  fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+    if (data.routes && data.routes[0]) {
+      var km = data.routes[0].distance / 1000, min = data.routes[0].duration / 60;
+      routeInfo = { distanceKm: Math.round(km), durationMin: Math.round(min) };
+      if (infoEl) infoEl.innerHTML = "🛣️ ≈ " + routeInfo.distanceKm + " km · ≈ " + formatDuration(routeInfo.durationMin);
+    } else if (infoEl) infoEl.textContent = "";
+  }).catch(function () { if (infoEl) infoEl.textContent = "Itinéraire indisponible."; routeInfo = null; });
+}
+function formatDuration(min) { var h = Math.floor(min / 60), m = Math.round(min % 60); return h > 0 ? (h + "h" + (m ? (m < 10 ? "0" + m : m) : "")) : (m + " min"); }
+function osmDirectionsUrl(t) { if (!t.originLat || !t.destLat) return null; return "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=" + t.originLat + "%2C" + t.originLon + "%3B" + t.destLat + "%2C" + t.destLon; }
+
+// ================= dérivées =================
+function tripOf(tripId) { return state.trips.find(function (x) { return x.id === tripId; }); }
+function requestOf(reqId) { return state.requests.find(function (x) { return x.id === reqId; }); }
+function tripLabel(tripId) { var t = tripOf(tripId); if (!t) return "trajet supprimé"; return esc(t.origin) + " → " + esc(t.destination) + " · " + esc(t.date); }
+function driverStats(driverName) {
+  var relevant = state.reservations.filter(function (r) { var t = tripOf(r.tripId); return t && t.driverName === driverName; });
+  var ratings = relevant.filter(function (r) { return r.rating; }).map(function (r) { return r.rating; });
+  var avg = ratings.length ? (ratings.reduce(function (a, b) { return a + b; }, 0) / ratings.length) : null;
+  var delivered = relevant.filter(function (r) { return r.status === "terminee"; }).length;
+  return { avg: avg, count: ratings.length, delivered: delivered };
+}
+function tierBadge(delivered) {
+  if (delivered >= 50) return '<span class="tier">🥇 Expert</span>';
+  if (delivered >= 20) return '<span class="tier">🥈 Confirmé</span>';
+  if (delivered >= 5) return '<span class="tier">🥉 Actif</span>';
+  return "";
+}
+function starsDisplay(avg, count) { if (!avg) return '<span class="muted">Pas encore d\'avis</span>'; return '<span style="color:#f59e0b;">★</span> ' + avg.toFixed(1) + ' <span class="muted">(' + count + ' avis)</span>'; }
+function badge(status) {
+  var map = { en_attente: ["En attente", "badge-wait"], validee: ["Validée", "badge-ok"], en_route: ["En route", "badge-route"], refusee: ["Refusée", "badge-no"], terminee: ["Livrée", "badge-done"], annulee: ["Annulée", "badge-cancel"], ouverte: ["Ouverte", "badge-wait"], prise_en_charge: ["Prise en charge", "badge-ok"], proposee: ["Proposée", "badge-wait"], acceptee: ["Acceptée", "badge-ok"] };
+  var v = map[status] || [status, "badge-cancel"];
+  return '<span class="badge ' + v[1] + '">' + v[0] + '</span>';
+}
+function routeBadgeHtml(t) {
+  if (!t.distanceKm) return "";
+  var h = '<span class="route-badge">🛣️ ' + t.distanceKm + ' km · ' + formatDuration(t.durationMin) + '</span>';
+  var url = osmDirectionsUrl(t); if (url) h += ' <a class="route-link" href="' + url + '" target="_blank" rel="noopener">Itinéraire ↗</a>';
+  return h;
+}
+function co2Html(r, t) {
+  if (!t || !t.distanceKm || !t.capacity) return "";
+  var kg = Math.round(t.distanceKm * 0.9 * (r.m3 / t.capacity));
+  return '<div class="co2">🌱 ≈ ' + kg + ' kg de CO₂ économisés en mutualisant ce chargement (estimation illustrative)</div>';
+}
+function chatHtml(r, sendFn) {
+  var msgs = r.messages.map(function (m) { var t = new Date(m.ts); var hh = ("0" + t.getHours()).slice(-2), mm = ("0" + t.getMinutes()).slice(-2); return '<div class="msg"><b>' + esc(m.from) + '</b> <span class="muted">· ' + hh + ':' + mm + '</span><div>' + esc(m.text) + '</div></div>'; }).join("");
+  if (!msgs) msgs = '<p class="muted">Aucun message.</p>';
+  return '<div class="chatbox"><div>' + msgs + '</div><div class="chatinput">' +
+    '<input type="text" id="chatinput-' + r.id + '" placeholder="Écrire un message" onkeydown="if(event.key===\'Enter\')' + sendFn + '(\'' + r.id + '\')" />' +
+    '<button onclick="' + sendFn + '(\'' + r.id + '\')">Envoyer</button></div></div>';
+}
+function ratingHint() { return '<p class="muted" style="margin:2px 0 10px;">ℹ️ La notation apparaît une fois la réservation "Livrée".</p>'; }
+function ratingWidget(r) {
+  if (r.rating) { var s = ""; for (var i = 1; i <= 5; i++) s += (i <= r.rating ? "★" : "☆"); return '<div class="muted" style="margin-top:6px;"><span style="color:#f59e0b;">' + s + '</span> merci pour votre avis</div>'; }
+  var stars = ""; for (var i = 1; i <= 5; i++) stars += '<span onclick="rateReservation(\'' + r.id + '\',' + i + ')">☆</span>';
+  return '<div style="margin-top:6px;"><span class="muted">Noter ce chauffeur : </span><span class="stars">' + stars + '</span></div>';
+}
+function verifiedTag(role) { return state.profiles[role].verified ? '<span class="verified">✅ Vérifié</span>' : ""; }
+
+// ================= suivi en direct =================
+function startTrip(resId) {
+  var r = state.reservations.find(function (x) { return x.id === resId; });
+  var t = tripOf(r.tripId);
+  r.status = "en_route";
+  r.startedAt = Date.now();
+  r.etaMinutes = (t && t.durationMin) ? t.durationMin : 60;
+  saveReservations(); render();
+  showToast("Trajet démarré 🚚 — suivi en direct activé");
+}
+function progressOf(r) {
+  if (r.status !== "en_route" || !r.startedAt) return null;
+  var elapsedMin = (Date.now() - r.startedAt) / 60000;
+  var pct = Math.min(100, (elapsedMin / r.etaMinutes) * 100);
+  var remainMin = Math.max(0, Math.round(r.etaMinutes - elapsedMin));
+  return { pct: pct, remainMin: remainMin };
+}
+function progressHtml(r) {
+  var p = progressOf(r); if (!p) return "";
+  return '<div class="progress-outer"><div class="progress-inner" id="progress-' + r.id + '" style="width:' + p.pct.toFixed(1) + '%;"></div></div>' +
+    '<div class="eta-text" id="eta-' + r.id + '">🚚 En route — arrivée estimée dans ' + formatDuration(p.remainMin) + '</div>';
+}
+setInterval(function () {
+  state.reservations.forEach(function (r) {
+    if (r.status !== "en_route") return;
+    var p = progressOf(r); if (!p) return;
+    var bar = document.getElementById("progress-" + r.id), eta = document.getElementById("eta-" + r.id);
+    if (bar) bar.style.width = p.pct.toFixed(1) + "%";
+    if (eta) eta.textContent = p.remainMin > 0 ? ("🚚 En route — arrivée estimée dans " + formatDuration(p.remainMin)) : "🚚 Arrivée estimée imminente";
+  });
+}, 4000);
+
+// ================= rendu =================
+function render() {
+  document.getElementById("tabClient").className = state.role === "client" ? "active" : "";
+  document.getElementById("tabChauffeur").className = state.role === "chauffeur" ? "active" : "";
+
+  var pendingForChauffeur = state.reservations.filter(function (r) { var t = tripOf(r.tripId); return t && t.driverName === fullName("chauffeur") && r.status === "en_attente"; }).length;
+  var activeForClient = state.reservations.filter(function (r) { return r.clientName === fullName("client") && (r.status === "validee" || r.status === "en_route"); }).length;
+  document.getElementById("tabChauffeur").innerHTML = '<span class="ic">🚚</span>Chauffeur' + (pendingForChauffeur ? '<span class="dot">' + pendingForChauffeur + '</span>' : "");
+  document.getElementById("tabClient").innerHTML = '<span class="ic">📦</span>Client' + (activeForClient ? '<span class="dot">' + activeForClient + '</span>' : "");
+
+  document.getElementById("idboxText").textContent = profileComplete(state.role) ? fullName(state.role) : "profil incomplet";
+
+  var html = renderProfileBar(state.role);
+  if (!profileComplete(state.role)) { document.getElementById("app").innerHTML = html; return; }
+
+  html += state.role === "chauffeur" ? renderChauffeur() : renderClient();
+  html += '<p class="footer-note">POC — bascule Client/Chauffeur en bas (synchronisation entre onglets du même navigateur). Adresses, carte, itinéraire & suggestions nécessitent une connexion internet et ne fonctionnent que dans le fichier téléchargé (pas sur un lien hébergé).</p>';
+  document.getElementById("app").innerHTML = html;
+
+  if (!isHosted && state.role === "chauffeur" && (state.showNewTrip || (state.chauffeurSubTab === "clientrequests" && state.showNewTrip))) { setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0); }
+}
+
+function renderProfileBar(role) {
+  var p = state.profiles[role];
+  if (!profileComplete(role) || state.editingProfile) {
+    return '<div class="profilebar"><div class="muted" style="margin-bottom:8px;">Profil ' + (role === "client" ? "client" : "chauffeur") + '</div>' +
+      '<div class="grid3">' +
+        '<input class="field" id="p-prenom" placeholder="Prénom" value="' + esc(p.prenom) + '" />' +
+        '<input class="field" id="p-nom" placeholder="Nom" value="' + esc(p.nom) + '" />' +
+        '<input class="field" id="p-tel" placeholder="Téléphone" value="' + esc(p.tel) + '" />' +
+      '</div>' +
+      '<label class="muted" style="display:flex; align-items:center; gap:6px; margin-bottom:10px;"><input type="checkbox" id="p-verified"' + (p.verified ? " checked" : "") + ' /> Je certifie mon identité (simulation de vérification)</label>' +
+      '<button class="btn btn-amber" onclick="saveProfile(\'' + role + '\')">Enregistrer le profil</button></div>';
+  }
+  return '<div class="profilebar"><div class="summary"><div><span class="avatar">' + initials(role) + '</span><b>' + esc(fullName(role)) + '</b> ' + verifiedTag(role) + ' <span class="muted">· ' + esc(p.tel) + '</span></div>' +
+    '<button class="btn-outline" onclick="state.editingProfile=true; render();">Modifier</button></div></div>';
+}
+
+function subtabsHtml(which) {
+  if (which === "chauffeur") {
+    return '<div class="subtabs">' +
+      '<button class="' + (state.chauffeurSubTab === "mytrips" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'mytrips\'; render();">🚚 Mes trajets</button>' +
+      '<button class="' + (state.chauffeurSubTab === "clientrequests" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'clientrequests\'; render();">📋 Demandes clients</button></div>';
+  }
+  return '<div class="subtabs">' +
+    '<button class="' + (state.clientSubTab === "browse" ? "active" : "") + '" onclick="state.clientSubTab=\'browse\'; render();">🔍 Trajets dispo</button>' +
+    '<button class="' + (state.clientSubTab === "requests" ? "active" : "") + '" onclick="state.clientSubTab=\'requests\'; render();">📢 Mes demandes</button></div>';
+}
+
+function renderChauffeur() {
+  var h = subtabsHtml("chauffeur");
+  if (state.chauffeurSubTab === "clientrequests") return h + renderClientRequestsForDrivers();
+  return h + renderMyTrips();
+}
+
+function renderMyTrips() {
+  var name = fullName("chauffeur");
+  var myTrips = state.trips.filter(function (t) { return t.driverName === name; });
+  var myRes = state.reservations.filter(function (r) { var t = tripOf(r.tripId); return t && t.driverName === name; });
+  var m3Valides = myRes.filter(function (r) { return r.status === "validee" || r.status === "en_route" || r.status === "terminee"; }).reduce(function (a, r) { return a + r.m3; }, 0);
+  var stats = driverStats(name);
+
+  var h = '<div class="stats">' +
+    '<div class="stat"><div class="num">' + myTrips.length + '</div><div class="lbl">Trajets publiés</div></div>' +
+    '<div class="stat"><div class="num">' + m3Valides + ' m³</div><div class="lbl">Chargement validé</div></div>' +
+    '<div class="stat"><div class="num">' + (stats.avg ? stats.avg.toFixed(1) + ' ★' : "—") + '</div><div class="lbl">' + (stats.count ? stats.count + ' avis' : "aucun avis") + '</div></div></div>';
+  if (stats.delivered > 0) h += '<div style="margin:-4px 0 14px;">' + stats.delivered + ' livraisons effectuées ' + tierBadge(stats.delivered) + '</div>';
+
+  h += '<div class="toprow"><h2 style="margin:0;">Mes trajets</h2><button class="btn btn-dark" onclick="toggleNewTrip()">+ Publier une dispo</button></div>';
+
+  if (state.showNewTrip) {
+    h += '<div class="card">' +
+      '<div class="addr-wrap"><div class="addr-row">' +
+        '<input class="field" id="f-origin" placeholder="Départ" value="' + esc(state._origin||"") + '" oninput="onAddressInput(\'f-origin\')" onblur="hideSuggestionsLater(\'f-origin\')" autocomplete="off" />' +
+        '<button type="button" class="geo-btn" title="Utiliser ma position" onclick="useMyLocation(\'f-origin\', this)">📍</button></div>' +
+      '<div class="suggestions" id="sugg-f-origin"></div></div>' +
+      '<div class="addr-wrap"><input class="field" id="f-dest" placeholder="Arrivée" value="' + esc(state._dest||"") + '" oninput="onAddressInput(\'f-dest\')" onblur="hideSuggestionsLater(\'f-dest\')" autocomplete="off" />' +
+        '<div class="suggestions" id="sugg-f-dest"></div></div>' +
+      (isHosted ? '<p class="muted" style="margin:-2px 0 8px;">ℹ️ Carte, suggestions et distance indisponibles sur ce lien hébergé — pleinement fonctionnelles dans le fichier téléchargé.</p>' : '<div id="route-map"></div><div id="route-info" class="muted"></div>') +
+      '<div class="grid2">' +
+        '<input class="field" id="f-date" type="date" value="' + esc(state._date||"") + '" />' +
+        '<select class="field" id="f-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '"' + (state._vehicle === k ? " selected" : "") + '>' + VEHICLES[k] + '</option>'; }).join("") + '</select>' +
+      '</div>' +
+      '<input class="field" id="f-cap" type="number" min="0" placeholder="Capacité (m³)" value="' + esc(state._cap||"") + '" />' +
+      '<input class="field" id="f-price" type="number" min="0" placeholder="Prix / m³ (optionnel)" value="' + esc(state._price||"") + '" />' +
+      '<button class="btn btn-amber" onclick="publishTrip()">Publier</button>' +
+      (state.tripError ? '<div class="error">' + esc(state.tripError) + '</div>' : '') + '</div>';
+  }
+
+  if (myTrips.length === 0) h += '<p class="muted">Aucun trajet publié pour l\'instant.</p>';
+  myTrips.forEach(function (t) {
+    var tripRes = state.reservations.filter(function (r) { return r.tripId === t.id; });
+    h += '<div class="card"><div class="flexwrap">' +
+        '<div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b> <span class="muted">· ' + esc(t.date) + ' · ' + vehicleLabel(t.vehicleType) + '</span><div>' + routeBadgeHtml(t) + '</div></div>' +
+        '<div class="muted">' + t.remaining + ' / ' + t.capacity + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
+    if (tripRes.length > 0) {
+      h += '<div class="reslist">';
+      tripRes.forEach(function (r) {
+        h += '<div class="resitem"><div class="flexwrap">' +
+            '<div><b>' + esc(r.clientName) + '</b> demande ' + r.m3 + ' m³</div>' +
+            '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">' + badge(r.status) +
+              (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">Valider</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">Refuser</button>' : '') +
+              (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">▶ Démarrer le trajet</button>' : '') +
+              (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">Marquer livré</button>' : '') +
+              '<button class="btn-outline" onclick="toggleThread(\'' + r.id + '\')">💬 Chat</button></div></div>' +
+          ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(r.clientTel) + '</div>' : '') +
+          progressHtml(r) +
+          (state.openThread === r.id ? chatHtml(r, "sendMessage") : '') + '</div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  return h;
+}
+
+function renderClientRequestsForDrivers() {
+  var name = fullName("chauffeur");
+  var open = state.requests.filter(function (r) { return r.status === "ouverte"; });
+  var h = '<h2>Demandes de trajet postées par des clients</h2>';
+  if (open.length === 0) h += '<p class="muted">Aucune demande ouverte pour l\'instant.</p>';
+  open.forEach(function (rq) {
+    var myOffer = rq.offers.find(function (o) { return o.driverName === name; });
+    h += '<div class="card"><div class="flexwrap"><div>' +
+        '<div><b>' + esc(rq.origin) + ' → ' + esc(rq.destination) + '</b></div>' +
+        '<div class="muted">' + esc(rq.date) + ' · ' + rq.m3Needed + ' m³ souhaités · ' + esc(rq.clientName) + ' ' + verifiedForRequestClient(rq) + '</div>' +
+        (rq.note ? '<div class="muted" style="margin-top:3px;">"' + esc(rq.note) + '"</div>' : '') +
+        '<div>' + routeBadgeHtml(rq) + '</div></div>' +
+        (myOffer ? badge(myOffer.status) : '<button class="btn btn-amber" onclick="offerOnRequest(\'' + rq.id + '\')">Je suis intéressé</button>') +
+      '</div>';
+    if (myOffer) {
+      h += ((myOffer.status === "acceptee") ? '<div class="contact">📞 Contact client : ' + esc(rq.clientTel) + '</div>' : '') +
+        '<div style="margin-top:8px;"><button class="btn-outline" onclick="toggleReqThread(\'' + rq.id + '_' + myOffer.id + '\')">💬 Chat</button></div>' +
+        (state.openReqThread === (rq.id + "_" + myOffer.id) ? chatHtml(Object.assign({}, myOffer, { id: rq.id + "_" + myOffer.id }), "sendReqMessage") : '');
+    }
+    h += '</div>';
+  });
+  return h;
+}
+function verifiedForRequestClient(rq) { return rq.clientVerified ? '<span class="verified">✅</span>' : ""; }
+
+function renderClient() {
+  var h = subtabsHtml("client");
+  if (state.clientSubTab === "requests") return h + renderMyRequests();
+  return h + renderBrowseTrips();
+}
+
+function renderBrowseTrips() {
+  var name = fullName("client");
+  var h = '<input class="field" id="searchInput" placeholder="Rechercher un trajet (ville de départ ou d\'arrivée)" value="' + esc(state.search) + '" oninput="state.search=this.value; render(); var el=document.getElementById(\'searchInput\'); el.focus(); el.selectionStart=el.value.length;" />';
+  h += '<div class="toprow"><h2 style="margin:0;">Trajets disponibles</h2>' +
+    '<select class="field" style="width:auto; margin:0;" onchange="state.sortBy=this.value; render();">' +
+      '<option value="date"' + (state.sortBy === "date" ? " selected" : "") + '>Trier : date</option>' +
+      '<option value="prix"' + (state.sortBy === "prix" ? " selected" : "") + '>Trier : prix</option>' +
+      '<option value="capacite"' + (state.sortBy === "capacite" ? " selected" : "") + '>Trier : capacité dispo</option></select></div>';
+
+  var available = state.trips.filter(function (t) { return t.remaining > 0; }).filter(function (t) { if (!state.search.trim()) return true; return (t.origin + t.destination).toLowerCase().indexOf(state.search.trim().toLowerCase()) !== -1; });
+  available = available.slice().sort(function (a, b) { if (state.sortBy === "prix") return (a.price||0) - (b.price||0); if (state.sortBy === "capacite") return b.remaining - a.remaining; return new Date(a.date) - new Date(b.date); });
+
+  if (available.length === 0) h += '<p class="muted">Aucun trajet disponible pour le moment.</p>';
+  available.forEach(function (t) {
+    var stats = driverStats(t.driverName);
+    h += '<div class="card"><div class="flexwrap"><div><div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b></div>' +
+        '<div class="muted">' + esc(t.date) + ' · ' + esc(t.driverName) + ' ' + (t.driverVerified ? '<span class="verified">✅</span>' : '') + ' · ' + vehicleLabel(t.vehicleType) + ' · ' + t.remaining + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div>' +
+        '<div style="margin-top:3px; font-size:12px;">' + starsDisplay(stats.avg, stats.count) + tierBadge(stats.delivered) + '</div>' +
+        '<div>' + routeBadgeHtml(t) + '</div></div>' +
+        '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">Réserver</button></div>';
+    if (state.reserveFor === t.id) {
+      h += '<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">' +
+        '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="m³ souhaités" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
+        ' <span class="muted" id="estimate-txt"></span><br/>' +
+        '<button class="btn btn-amber" onclick="submitReservation(\'' + t.id + '\')">Envoyer la demande</button>' +
+        (state.reserveError ? '<div class="error">' + esc(state.reserveError) + '</div>' : '') + '</div>';
+    }
+    h += '</div>';
+  });
+
+  var myRes = state.reservations.filter(function (r) { return r.clientName === name; });
+  h += '<h2>Mes réservations</h2>';
+  if (myRes.length === 0) h += '<p class="muted">Aucune réservation pour l\'instant.</p>'; else h += ratingHint();
+  myRes.forEach(function (r) {
+    var t = tripOf(r.tripId);
+    h += '<div class="card"><div class="flexwrap"><div><b>' + tripLabel(r.tripId) + '</b> · ' + r.m3 + ' m³</div>' +
+        '<div style="display:flex; gap:6px; align-items:center;">' + badge(r.status) +
+          (r.status === "en_attente" ? '<button class="btn-outline" onclick="decide(\'' + r.id + '\',\'annulee\')">Annuler</button>' : '') +
+          '<button class="btn-outline" onclick="toggleThread(\'' + r.id + '\')">💬 Chat</button></div></div>' +
+      ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") && t ? '<div class="contact">📞 Contact chauffeur : ' + esc(t.driverTel) + '</div>' : '') +
+      (t ? '<div>' + routeBadgeHtml(t) + '</div>' : '') + progressHtml(r) +
+      (r.status === "terminee" ? co2Html(r, t) + ratingWidget(r) : '') +
+      (state.openThread === r.id ? chatHtml(r, "sendMessage") : '') + '</div>';
+  });
+  return h;
+}
+
+function renderMyRequests() {
+  var name = fullName("client");
+  var h = '<div class="toprow"><h2 style="margin:0;">Mes demandes de trajet</h2><button class="btn btn-dark" onclick="toggleNewRequest()">+ Poster une demande</button></div>';
+
+  if (state.showNewRequest) {
+    h += '<div class="card">' +
+      '<div class="addr-wrap"><div class="addr-row">' +
+        '<input class="field" id="r-origin" placeholder="Départ" value="' + esc(state._rOrigin||"") + '" oninput="onAddressInput(\'r-origin\')" onblur="hideSuggestionsLater(\'r-origin\')" autocomplete="off" />' +
+        '<button type="button" class="geo-btn" title="Utiliser ma position" onclick="useMyLocation(\'r-origin\', this)">📍</button></div>' +
+      '<div class="suggestions" id="sugg-r-origin"></div></div>' +
+      '<div class="addr-wrap"><input class="field" id="r-dest" placeholder="Arrivée" value="' + esc(state._rDest||"") + '" oninput="onAddressInput(\'r-dest\')" onblur="hideSuggestionsLater(\'r-dest\')" autocomplete="off" />' +
+        '<div class="suggestions" id="sugg-r-dest"></div></div>' +
+      '<input class="field" id="r-date" type="date" value="' + esc(state._rDate||"") + '" />' +
+      '<input class="field" id="r-m3" type="number" min="1" placeholder="m³ nécessaires" value="' + esc(state._rM3||"") + '" />' +
+      '<input class="field" id="r-note" placeholder="Note pour les chauffeurs (optionnel)" value="' + esc(state._rNote||"") + '" />' +
+      '<button class="btn btn-amber" onclick="publishRequest()">Publier la demande</button>' +
+      (state.reqError ? '<div class="error">' + esc(state.reqError) + '</div>' : '') + '</div>';
+  }
+
+  var myReq = state.requests.filter(function (r) { return r.clientName === name; });
+  if (myReq.length === 0) h += '<p class="muted">Aucune demande postée pour l\'instant. Publie une demande pour que des chauffeurs disponibles te contactent directement.</p>';
+  myReq.forEach(function (rq) {
+    h += '<div class="card"><div class="flexwrap"><div><b>' + esc(rq.origin) + ' → ' + esc(rq.destination) + '</b> <span class="muted">· ' + esc(rq.date) + ' · ' + rq.m3Needed + ' m³</span><div>' + routeBadgeHtml(rq) + '</div></div>' + badge(rq.status) + '</div>';
+    if (rq.offers.length === 0) h += '<p class="muted" style="margin-top:8px;">Aucune proposition de chauffeur pour l\'instant.</p>';
+    else {
+      h += '<div class="reslist">';
+      rq.offers.forEach(function (o) {
+        h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(o.driverName) + '</b> · ' + vehicleLabel(o.vehicleType) + '</div>' +
+            '<div style="display:flex; gap:6px; align-items:center;">' + badge(o.status) +
+              (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')">Accepter</button>' : '') +
+              '<button class="btn-outline" onclick="toggleReqThread(\'' + rq.id + '_' + o.id + '\')">💬 Chat</button></div></div>' +
+          (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(o.driverTel) + '</div>' : '') +
+          (state.openReqThread === (rq.id + "_" + o.id) ? chatHtml(Object.assign({}, o, { id: rq.id + "_" + o.id }), "sendReqMessage") : '') + '</div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  return h;
+}
+
+function updateEstimate(input, price) {
+  var span = document.getElementById("estimate-txt"); var m3 = Number(input.value); if (!span) return;
+  span.textContent = (price && m3 > 0) ? ("≈ " + (m3 * price).toLocaleString() + " estimé") : "";
+}
+
+// ================= actions profil =================
+function saveProfile(role) {
+  state.profiles[role].prenom = document.getElementById("p-prenom").value;
+  state.profiles[role].nom = document.getElementById("p-nom").value;
+  state.profiles[role].tel = document.getElementById("p-tel").value;
+  state.profiles[role].verified = document.getElementById("p-verified").checked;
+  state.editingProfile = false; render(); showToast("Profil enregistré", "ok");
+}
+
+// ================= actions trajets =================
+function toggleNewTrip() { state.showNewTrip = !state.showNewTrip; state.tripError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
+function toggleReserve(id) { state.reserveFor = state.reserveFor === id ? null : id; state.reserveError = ""; render(); }
+function toggleThread(id) { state.openThread = state.openThread === id ? null : id; render(); }
+function toggleReqThread(id) { state.openReqThread = state.openReqThread === id ? null : id; render(); }
+
+function publishTrip() {
+  state._origin = document.getElementById("f-origin").value;
+  state._dest = document.getElementById("f-dest").value;
+  state._date = document.getElementById("f-date").value;
+  state._cap = document.getElementById("f-cap").value;
+  state._price = document.getElementById("f-price").value;
+  state._vehicle = document.getElementById("f-vehicle").value;
+  if (!state._origin || !state._dest || !state._date || !state._cap) { state.tripError = "Départ, arrivée, date et capacité sont obligatoires."; render(); return; }
+  var p = state.profiles.chauffeur;
+  state.trips.unshift({
+    id: uid(), driverName: fullName("chauffeur"), driverTel: p.tel, driverVerified: p.verified,
+    origin: state._origin.trim(), destination: state._dest.trim(), date: state._date, vehicleType: state._vehicle,
+    capacity: Number(state._cap), remaining: Number(state._cap), price: state._price ? Number(state._price) : null,
+    originLat: coords.origin ? coords.origin.lat : null, originLon: coords.origin ? coords.origin.lon : null,
+    destLat: coords.dest ? coords.dest.lat : null, destLon: coords.dest ? coords.dest.lon : null,
+    distanceKm: routeInfo ? routeInfo.distanceKm : null, durationMin: routeInfo ? routeInfo.durationMin : null
+  });
+  state.showNewTrip = false; state.tripError = "";
+  state._origin = state._dest = state._date = state._cap = state._price = "";
+  coords = { origin: null, dest: null }; routeInfo = null;
+  saveTrips(); render(); showToast("Trajet publié 🚚", "ok");
+}
+
+function submitReservation(tripId) {
+  var t = tripOf(tripId);
+  state._reserveM3 = document.getElementById("f-m3").value;
+  if (!state._reserveM3 || Number(state._reserveM3) <= 0) { state.reserveError = "Indiquez un nombre de m³ valide."; render(); return; }
+  if (Number(state._reserveM3) > t.remaining) { state.reserveError = "Seulement " + t.remaining + " m³ disponibles sur ce trajet."; render(); return; }
+  var p = state.profiles.client;
+  state.reservations.unshift({ id: uid(), tripId: tripId, clientName: fullName("client"), clientTel: p.tel, m3: Number(state._reserveM3), status: "en_attente", messages: [], rating: null });
+  state.reserveFor = null; state.reserveError = ""; state._reserveM3 = "";
+  saveReservations(); render(); showToast("Demande envoyée", "ok");
+}
+
+function decide(resId, status) {
+  var r = state.reservations.find(function (x) { return x.id === resId; });
+  var wasValidated = r.status === "validee" || r.status === "en_route" || r.status === "terminee";
+  r.status = status;
+  if (status === "validee" && !wasValidated) { var t = tripOf(r.tripId); t.remaining = Math.max(0, t.remaining - r.m3); saveTrips(); }
+  saveReservations(); render();
+  var labels = { validee: "Réservation validée ✅", refusee: "Réservation refusée", terminee: "Livraison marquée 📦", annulee: "Réservation annulée" };
+  showToast(labels[status] || "Mis à jour");
+}
+function rateReservation(resId, stars) { var r = state.reservations.find(function (x) { return x.id === resId; }); r.rating = stars; saveReservations(); render(); showToast("Merci pour votre avis ⭐"); }
+function sendMessage(resId) {
+  var input = document.getElementById("chatinput-" + resId); var text = input.value.trim(); if (!text) return;
+  var r = state.reservations.find(function (x) { return x.id === resId; });
+  r.messages.push({ from: fullName(state.role) || "anonyme", text: text, ts: Date.now() });
+  saveReservations(); render();
+}
+
+// ================= actions demandes clients =================
+function toggleNewRequest() { state.showNewRequest = !state.showNewRequest; state.reqError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
+function publishRequest() {
+  state._rOrigin = document.getElementById("r-origin").value;
+  state._rDest = document.getElementById("r-dest").value;
+  state._rDate = document.getElementById("r-date").value;
+  state._rM3 = document.getElementById("r-m3").value;
+  state._rNote = document.getElementById("r-note").value;
+  if (!state._rOrigin || !state._rDest || !state._rDate || !state._rM3) { state.reqError = "Départ, arrivée, date et m³ sont obligatoires."; render(); return; }
+  var p = state.profiles.client;
+  state.requests.unshift({
+    id: uid(), clientName: fullName("client"), clientTel: p.tel, clientVerified: p.verified,
+    origin: state._rOrigin.trim(), destination: state._rDest.trim(), date: state._rDate, m3Needed: Number(state._rM3), note: state._rNote.trim(),
+    originLat: coords.origin ? coords.origin.lat : null, originLon: coords.origin ? coords.origin.lon : null,
+    destLat: coords.dest ? coords.dest.lat : null, destLon: coords.dest ? coords.dest.lon : null,
+    distanceKm: routeInfo ? routeInfo.distanceKm : null, durationMin: routeInfo ? routeInfo.durationMin : null,
+    status: "ouverte", offers: []
+  });
+  state.showNewRequest = false; state.reqError = "";
+  state._rOrigin = state._rDest = state._rDate = state._rM3 = state._rNote = "";
+  coords = { origin: null, dest: null }; routeInfo = null;
+  saveRequests(); render(); showToast("Demande publiée 📢", "ok");
+}
+function offerOnRequest(reqId) {
+  var rq = requestOf(reqId); var p = state.profiles.chauffeur;
+  rq.offers.push({ id: uid(), driverName: fullName("chauffeur"), driverTel: p.tel, vehicleType: state._vehicle || "bache", status: "proposee", messages: [] });
+  saveRequests(); render(); showToast("Proposition envoyée");
+}
+function acceptOffer(reqId, offerId) {
+  var rq = requestOf(reqId);
+  rq.offers.forEach(function (o) { o.status = (o.id === offerId) ? "acceptee" : (o.status === "proposee" ? "refusee" : o.status); });
+  rq.status = "prise_en_charge";
+  saveRequests(); render(); showToast("Chauffeur accepté ✅", "ok");
+}
+function sendReqMessage(compositeId) {
+  var parts = compositeId.split("_"); var reqId = parts[0], offerId = parts.length > 1 ? parts[1] : null;
+  var rq = requestOf(reqId); if (!rq) return;
+  var input = document.getElementById("chatinput-" + compositeId); if (!input) return;
+  var text = input.value.trim(); if (!text) return;
+  var target = offerId ? rq.offers.find(function (o) { return o.id === offerId; }) : rq.offers.find(function (o) { return o.driverName === fullName("chauffeur"); });
+  if (!target) return;
+  target.messages.push({ from: fullName(state.role) || "anonyme", text: text, ts: Date.now() });
+  saveRequests(); render();
+}
+function sendOfferMessage(compositeId) { sendReqMessage(compositeId); }
+
+function refreshFromStorage() { state.trips = loadTrips(); state.reservations = loadReservations(); state.requests = loadRequests(); render(); }
+
+// ================= init =================
+document.getElementById("tabClient").addEventListener("click", function () { state.role = "client"; state.editingProfile = false; render(); });
+document.getElementById("tabChauffeur").addEventListener("click", function () { state.role = "chauffeur"; state.editingProfile = false; render(); });
+window.addEventListener("storage", function (e) { if (e.key === TRIPS_KEY || e.key === RES_KEY || e.key === REQ_KEY) refreshFromStorage(); });
+
+state.trips = loadTrips(); state.reservations = loadReservations(); state.requests = loadRequests();
+render();
+if (syncError) document.getElementById("app").insertAdjacentHTML("afterbegin", '<div class="notice" style="background:#fee2e2; border-color:#fecaca; color:#991b1b;">Stockage local indisponible — chaque onglet reste indépendant.</div>');
+</script>
+</body>
+</html>
