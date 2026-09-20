@@ -75,7 +75,7 @@ function selectAddress(fieldId, idx) {
 }
 function hideSuggestionsLater(fieldId) { setTimeout(function () { var box = document.getElementById("sugg-" + fieldId); if (box) box.innerHTML = ""; }, 200); }
 function useMyLocation(fieldId, btn) {
-  if (!navigator.geolocation) { showToastr("Géolocalisation non supportée.", "err"); return; }
+  if (!navigator.geolocation) { showToast("Géolocalisation non supportée.", "err"); return; }
   btn.textContent = "…";
   navigator.geolocation.getCurrentPosition(function (pos) {
     var lat = pos.coords.latitude, lon = pos.coords.longitude;
@@ -83,7 +83,7 @@ function useMyLocation(fieldId, btn) {
       .then(function (r) { return r.json(); })
       .then(function (data) { document.getElementById(fieldId).value = data.display_name || (lat.toFixed(5) + ", " + lon.toFixed(5)); coords.origin = { lat: lat, lon: lon }; btn.textContent = "📍"; updateRoutePreview(); })
       .catch(function () { document.getElementById(fieldId).value = lat.toFixed(5) + ", " + lon.toFixed(5); coords.origin = { lat: lat, lon: lon }; btn.textContent = "📍"; updateRoutePreview(); });
-  }, function (err) { showToastr("Position indisponible : " + err.message, "err"); btn.textContent = "📍"; });
+  }, function (err) { showToast("Position indisponible : " + err.message, "err"); btn.textContent = "📍"; });
 }
 
 // ================= carte + itinéraire =================
@@ -149,7 +149,7 @@ async function doSignup() {
   var { data, error } = await sb.auth.signUp({ email: email, password: pass });
   state.authBusy = false;
   if (error) { state.authError = error.message; render(); return; }
-  if (!data.session) { state.authError = ""; showToastr("Compte créé — vérifie ta boîte mail pour confirmer, puis connecte-toi.", "ok"); state.authMode = "login"; render(); return; }
+  if (!data.session) { state.authError = ""; showToast("Compte créé — vérifie ta boîte mail pour confirmer, puis connecte-toi.", "ok"); state.authMode = "login"; render(); return; }
   state.session = data.session; await onAuthChange();
 }
 async function doLogin() {
@@ -171,7 +171,7 @@ async function doForgotPassword() {
   state.authBusy = false;
   if (error) { state.authError = error.message; render(); return; }
   state.authMode = "login"; render();
-  showToastr("Email envoyé — clique le lien reçu pour choisir un nouveau mot de passe.", "ok");
+  showToast("Email envoyé — clique le lien reçu pour choisir un nouveau mot de passe.", "ok");
 }
 async function doUpdatePassword() {
   var pass = document.getElementById("reset-pass").value;
@@ -183,16 +183,16 @@ async function doUpdatePassword() {
   state.authBusy = false;
   if (error) { state.authError = error.message; render(); return; }
   state.authMode = "login"; state.authError = "";
-  showToastr("Mot de passe mis à jour ✅", "ok");
+  showToast("Mot de passe mis à jour ✅", "ok");
   await onAuthChange();
 }
 
 async function loadMyProfile() {
-  var { data } = await sb.from("profiles").selectr("*").eq("id", myId()).maybeSingle();
+  var { data } = await sb.from("profiles").select("*").eq("id", myId()).maybeSingle();
   state.myProfile = data || null;
 }
 async function loadMyDriverProfile() {
-  var { data } = await sb.from("driver_profiles").selectr("*").eq("id", myId()).maybeSingle();
+  var { data } = await sb.from("driver_profiles").select("*").eq("id", myId()).maybeSingle();
   state.myDriverProfile = data || null;
 }
 async function saveDriverProfile() {}
@@ -220,19 +220,19 @@ async function saveProfileToDb() {
   }
   state.myProfile = row; state.editingProfile = false; state.profileError = "";
   await loadMyDriverProfile(); await loadAllData(); subscribeRealtime();
-  render(); showToastr("Profil enregistré", "ok");
+  render(); showToast("Profil enregistré", "ok");
 }
 
 // ================= chargement des données =================
 var dataChannel = null, threadChannel = null;
 async function loadAllData() {
   var [profilesRes, tripsRes, resvRes, reqRes, offRes, msgMetaRes] = await Promise.all([
-    sb.from("profiles").selectr("*"),
-    sb.from("trips").selectr("*").order("created_at", { ascending: false }),
-    sb.from("reservations").selectr("*").order("created_at", { ascending: false }),
-    sb.from("requests").selectr("*").order("created_at", { ascending: false }),
-    sb.from("request_offers").selectr("*").order("created_at", { ascending: false }),
-    sb.from("messages").selectr("thread_type, thread_id, sender_id, created_at").order("created_at", { ascending: false })
+    sb.from("profiles").select("*"),
+    sb.from("trips").select("*").order("created_at", { ascending: false }),
+    sb.from("reservations").select("*").order("created_at", { ascending: false }),
+    sb.from("requests").select("*").order("created_at", { ascending: false }),
+    sb.from("request_offers").select("*").order("created_at", { ascending: false }),
+    sb.from("messages").select("thread_type, thread_id, sender_id, created_at").order("created_at", { ascending: false })
   ]);
   state.profilesById = {}; (profilesRes.data || []).forEach(function (p) { state.profilesById[p.id] = p; });
   state.trips = tripsRes.data || []; state.reservations = resvRes.data || [];
@@ -271,7 +271,7 @@ function chatBtnHtml(type, id, withName) {
   return '<span style="position:relative; display:inline-block;"><button class="chat-icon-btn" onclick="openChat(' + jsStr(type) + ',' + jsStr(id) + ',' + jsStr(withName) + ')" title="Chat">💬</button>' + dot + '</span>';
 }
 async function loadThreadMessages(type, id) {
-  var { data } = await sb.from("messages").selectr("*").eq("thread_type", type).eq("thread_id", id).order("created_at");
+  var { data } = await sb.from("messages").select("*").eq("thread_type", type).eq("thread_id", id).order("created_at");
   state.messages[threadKey(type, id)] = data || [];
 }
 function subscribeThread(type, id) {
@@ -384,7 +384,7 @@ async function startTrip(resId) {
   var eta = (t && t.duration_min) ? t.duration_min : 60;
   var { error } = await sb.from("reservations").update({ status: "en_route", started_at: new Date().toISOString(), eta_minutes: eta }).eq("id", resId);
   if (error) { showToast(error.message, "err"); return; }
-  await loadAllData(); render(); showToastr("Trajet démarré 🚚 — suivi en direct activé");
+  await loadAllData(); render(); showToast("Trajet démarré 🚚 — suivi en direct activé");
 }
 function progressOf(r) {
   if (r.status !== "en_route" || !r.started_at) return null;
@@ -568,7 +568,7 @@ function renderMyTrips() {
     var tripRes = state.reservations.filter(function (r) { return r.trip_id === t.id; });
     h += '<div class="card"><div class="flexwrap">' +
         '<div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b> <span class="muted">· ' + esc(t.date) + ' · ' + vehicleLabel(t.vehicle_type) + '</span><div>' + routeBadgeHtml(t) + '</div></div>' +
-        '<div class="muted">' + t.remaining + ' / ' + t.capacity + '' + ' m³ ' + tr("m3_available").replace('m³ ','') + '' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
+        '<div class="muted">' + t.remaining + ' / ' + t.capacity + ' ' + tr("m3_available") + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
     if (tripRes.length > 0) {
       h += '<div class="reslist">';
       tripRes.forEach(function (r) {
@@ -648,7 +648,7 @@ function renderBrowseTrips() {
         '<span class="avatar-sm">' + profileInitials(dp) + '</span>' +
         '<span>' + esc(t.date) + '</span>' +
         (stats.avg ? '<span>★ ' + stats.avg.toFixed(1) + '</span>' : '') +
-      '</div><span class="muted">' + t.remaining + '' + ' m³ ' + tr("m3_available").replace('m³ ','') + '</span></div>';
+      '</div><span class="muted">' + t.remaining + ' ' + tr("m3_available") + '</span></div>';
     if (isOpen) {
       h += '<div class="trip-details" onclick="event.stopPropagation();">' +
         '<div class="flexwrap" style="margin-bottom:8px;">' +
@@ -736,7 +736,7 @@ function renderMyRequests() {
         '<div class="suggestions" id="sugg-r-dest"></div></div>' +
       '<div id="route-map"></div><div id="route-info" class="muted"></div>' +
       '<input class="field" id="r-date" type="date" value="' + esc(state._rDate||"") + '" />' +
-      '<input class="field" id="r-m3" type="number" min="1" placeholder=tr("ph_m3_needed") value="' + esc(state._rM3||"") + '" />' +
+      '<input class="field" id="r-m3" type="number" min="1" placeholder="' + tr("ph_m3_needed") + '" value="' + esc(state._rM3||"") + '" />' +
       '<input class="field" id="r-note" placeholder=tr("ph_note") value="' + esc(state._rNote||"") + '" />' +
       '<button class="btn btn-amber" onclick="publishRequest()">Publier la demande</button>' +
       (state.reqError ? '<div class="error">' + esc(state.reqError) + '</div>' : '') + '</div>';
@@ -799,18 +799,18 @@ async function publishTrip() {
   state.showNewTrip = false; state.tripError = "";
   state._origin = state._dest = state._date = state._cap = state._price = "";
   coords = { origin: null, dest: null }; routeInfo = null;
-  await loadAllData(); render(); showToastr("Trajet publié 🚚", "ok");
+  await loadAllData(); render(); showToast("Trajet publié 🚚", "ok");
 }
 
 async function submitReservation(tripId) {
   var t = tripOf(tripId);
   state._reserveM3 = document.getElementById("f-m3").value;
   if (!state._reserveM3 || Number(state._reserveM3) <= 0) { state.reserveError = "Indiquez un nombre de m³ valide."; render(); return; }
-  if (Number(state._reserveM3) > t.remaining) { state.reserveError = "Seulement " + t.remaining + "' + ' m³ ' + tr("m3_available").replace('m³ ','') + 'nibles sur ce trajet."; render(); return; }
+  if (Number(state._reserveM3) > t.remaining) { state.reserveError = "Seulement " + t.remaining + " m³ disponibles sur ce trajet."; render(); return; }
   var { error } = await sb.from("reservations").insert({ trip_id: tripId, client_id: myId(), m3: Number(state._reserveM3), status: "en_attente" });
   if (error) { state.reserveError = error.message; render(); return; }
   state.reserveFor = null; state.reserveError = ""; state._reserveM3 = "";
-  await loadAllData(); render(); showToastr("Demande envoyée", "ok");
+  await loadAllData(); render(); showToast("Demande envoyée", "ok");
 }
 
 async function decide(resId, status) {
@@ -829,7 +829,7 @@ async function decide(resId, status) {
 async function rateReservation(resId, stars) {
   var { error } = await sb.from("reservations").update({ rating: stars }).eq("id", resId);
   if (error) { showToast(error.message, "err"); return; }
-  await loadAllData(); render(); showToastr("Merci pour votre avis ⭐");
+  await loadAllData(); render(); showToast("Merci pour votre avis ⭐");
 }
 
 async function publishRequest() {
@@ -850,14 +850,14 @@ async function publishRequest() {
   state.showNewRequest = false; state.reqError = "";
   state._rOrigin = state._rDest = state._rDate = state._rM3 = state._rNote = "";
   coords = { origin: null, dest: null }; routeInfo = null;
-  await loadAllData(); render(); showToastr("Demande publiée 📢", "ok");
+  await loadAllData(); render(); showToast("Demande publiée 📢", "ok");
 }
 async function offerOnRequest(reqId) {
   var vehSel = document.getElementById("veh-" + reqId);
   var vehicle = vehSel ? vehSel.value : "bache";
   var { error } = await sb.from("request_offers").insert({ request_id: reqId, driver_id: myId(), vehicle_type: vehicle, status: "proposee" });
   if (error) { showToast(error.message, "err"); return; }
-  await loadAllData(); render(); showToastr("Proposition envoyée");
+  await loadAllData(); render(); showToast("Proposition envoyée");
 }
 async function acceptOffer(reqId, offerId) {
   var offersForReq = state.offers.filter(function (o) { return o.request_id === reqId; });
@@ -866,7 +866,7 @@ async function acceptOffer(reqId, offerId) {
     return sb.from("request_offers").update({ status: newStatus }).eq("id", o.id);
   }));
   await sb.from("requests").update({ status: "prise_en_charge" }).eq("id", reqId);
-  await loadAllData(); render(); showToastr("Chauffeur accepté ✅", "ok");
+  await loadAllData(); render(); showToast("Chauffeur accepté ✅", "ok");
 }
 
 // ================= init =================
