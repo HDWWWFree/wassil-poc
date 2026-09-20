@@ -1,6 +1,6 @@
 // Service worker minimal : garde l'interface de l'app disponible hors-ligne
 // (pas les données en direct, qui ont toujours besoin d'internet pour Supabase).
-var CACHE = "ecoroute-cache-v2";
+var CACHE = "ecoroute-cache-v3";
 var APP_SHELL = ["./", "./index.html", "./style.css", "./config.js", "./app.js", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", function (event) {
