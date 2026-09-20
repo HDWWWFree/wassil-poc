@@ -1,12 +1,11 @@
 var VEHICLES = { bache: "🚚 Bâché", frigo: "❄️ Frigorifique", plateau: "📐 Plateau", benne: "🏗️ Benne" };
 function vehicleLabel(v) { return VEHICLES[v] || "🚚 Bâché"; }
 function uid() { return Math.random().toString(36).slice(2, 10); }
-function esc(s) { var d = document.createElementr("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 function jsStr(s) { return "'" + String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'"; }
 
 // ================= état =================
 var state = {
-  lang: getStoredLang(),
   session: null, myProfile: null, myDriverProfile: null, profilesById: {},
   trips: [], reservations: [], requests: [], offers: [],
   clientSubTab: "browse", chauffeurSubTab: "mytrips",
@@ -40,7 +39,7 @@ function toggleTheme() {
 // ================= toasts =================
 function showToast(msg, type) {
   var wrap = document.getElementById("toastWrap");
-  var t = document.createElementr("div"); t.className = "toast" + (type ? " " + type : ""); t.textContent = msg;
+  var t = document.createElement("div"); t.className = "toast" + (type ? " " + type : ""); t.textContent = msg;
   wrap.appendChild(t);
   setTimeout(function () { t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(function () { t.remove(); }, 300); }, 2600);
 }
@@ -328,7 +327,7 @@ function tierBadge(delivered) {
 }
 function starsDisplay(avg, count) { if (!avg) return '<span class="muted">Pas encore d\'avis</span>'; return '<span style="color:#e0a100;">★</span> ' + avg.toFixed(1) + ' <span class="muted">(' + count + ' avis)</span>'; }
 function badge(status) {
-  var map = { en_attente: [tr("status_waiting"), "badge-wait"], validee: [tr("status_validated"), "badge-ok"], en_route: [tr("status_enroute"), "badge-route"], refusee: [tr("status_refused"), "badge-no"], terminee: [tr("status_delivered"), "badge-done"], annulee: [tr("status_cancelled"), "badge-cancel"], ouverte: [tr("status_open"), "badge-wait"], prise_en_charge: [tr("status_taken"), "badge-ok"], proposee: [tr("status_proposed"), "badge-wait"], acceptee: [tr("status_accepted"), "badge-ok"] };
+  var map = { en_attente: ["En attente", "badge-wait"], validee: ["Validée", "badge-ok"], en_route: ["En route", "badge-route"], refusee: ["Refusée", "badge-no"], terminee: ["Livrée", "badge-done"], annulee: ["Annulée", "badge-cancel"], ouverte: ["Ouverte", "badge-wait"], prise_en_charge: ["Prise en charge", "badge-ok"], proposee: ["Proposée", "badge-wait"], acceptee: ["Acceptée", "badge-ok"] };
   var v = map[status] || [status, "badge-cancel"];
   return '<span class="badge ' + v[1] + '">' + v[0] + '</span>';
 }
@@ -353,7 +352,7 @@ function renderChatOverlay() {
     var t = new Date(m.created_at); var hh = ("0" + t.getHours()).slice(-2), mm = ("0" + t.getMinutes()).slice(-2);
     return '<div class="chat-row ' + (mine ? "me" : "other") + '"><div class="chat-bubble"><div class="txt">' + esc(m.text) + '</div><div class="chat-time">' + hh + ':' + mm + '</div></div></div>';
   }).join("");
-  if (!msgs) msgs = '<p class="muted" style="text-align:center; margin-top:20px;">' + tr("no_messages") + '</p>';
+  if (!msgs) msgs = '<p class="muted" style="text-align:center; margin-top:20px;">Aucun message pour l\'instant.</p>';
 
   el.innerHTML = '<div class="chat-backdrop" onclick="if(event.target===this)closeChat();">' +
     '<div class="chat-sheet">' +
@@ -362,7 +361,7 @@ function renderChatOverlay() {
         '<button class="chat-close" onclick="closeChat()">✕</button></div>' +
       '<div class="chat-msgs" id="chat-msgs">' + msgs + '</div>' +
       '<div class="chat-inputbar">' +
-        '<input type="text" id="chat-input" placeholder=tr("write_message") onkeydown="if(event.key===\'Enter\')sendChatMessage()" />' +
+        '<input type="text" id="chat-input" placeholder="Écrire un message" onkeydown="if(event.key===\'Enter\')sendChatMessage()" />' +
         '<button class="chat-send" onclick="sendChatMessage()">➤</button>' +
       '</div>' +
     '</div></div>';
@@ -370,11 +369,11 @@ function renderChatOverlay() {
   var box = document.getElementById("chat-msgs");
   if (box) box.scrollTop = box.scrollHeight;
 }
-function ratingHint() { return '<p class="muted" style="margin:2px 0 10px;">ℹ️ ' + tr("rating_hint").replace('ℹ️ ','') + '</p>'; }
+function ratingHint() { return '<p class="muted" style="margin:2px 0 10px;">ℹ️ La notation apparaît une fois la réservation "Livrée".</p>'; }
 function ratingWidget(r) {
-  if (r.rating) { var s = ""; for (var i = 1; i <= 5; i++) s += (i <= r.rating ? "★" : "☆"); return '<div class="muted" style="margin-top:6px;"><span style="color:#e0a100;">' + s + '</span> ' + tr("thanks_rating") + '</div>'; }
+  if (r.rating) { var s = ""; for (var i = 1; i <= 5; i++) s += (i <= r.rating ? "★" : "☆"); return '<div class="muted" style="margin-top:6px;"><span style="color:#e0a100;">' + s + '</span> merci pour votre avis</div>'; }
   var stars = ""; for (var i = 1; i <= 5; i++) stars += '<span onclick="rateReservation(\'' + r.id + '\',' + i + ')">☆</span>';
-  return '<div style="margin-top:6px;"><span class="muted">' + tr("rate_driver") + '</span><span class="stars">' + stars + '</span></div>';
+  return '<div style="margin-top:6px;"><span class="muted">Noter ce chauffeur : </span><span class="stars">' + stars + '</span></div>';
 }
 
 // ================= suivi en direct =================
@@ -433,9 +432,9 @@ function renderAuth() {
     var hf = '<div class="authwrap"><div class="authcard">' +
       '<h2 style="margin-top:0;">Mot de passe oublié</h2>' +
       '<p class="muted" style="margin-top:-4px;">Entre ton email, tu recevras un lien pour en choisir un nouveau.</p>' +
-      '<input class="field" id="auth-email" type="email" placeholder=tr("email") autocomplete="username" />' +
+      '<input class="field" id="auth-email" type="email" placeholder="Email" autocomplete="username" />' +
       '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="doForgotPassword()">' +
-        (state.authBusy ? '<span class="spinner"></span>' : "") + tr("forgot_send") + '</button>' +
+        (state.authBusy ? '<span class="spinner"></span>' : "") + 'Envoyer le lien' + '</button>' +
       '<button class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">← Retour à la connexion</button>' +
       (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
     '</div></div>';
@@ -447,14 +446,14 @@ function renderAuth() {
       '<button class="' + (state.authMode === "login" ? "active" : "") + '" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">Connexion</button>' +
       '<button class="' + (state.authMode === "signup" ? "active" : "") + '" onclick="state.authMode=\'signup\'; state.authError=\'\'; render();">Créer un compte</button>' +
     '</div>' +
-    '<input class="field" id="auth-email" type="email" placeholder=tr("email") autocomplete="username" />' +
-    '<div class="pwd-wrap"><input class="field" id="auth-pass" type="password" placeholder=tr("password") autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
+    '<input class="field" id="auth-email" type="email" placeholder="Email" autocomplete="username" />' +
+    '<div class="pwd-wrap"><input class="field" id="auth-pass" type="password" placeholder="Mot de passe" autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
       '<button type="button" class="pwd-toggle" onclick="togglePwd(\'auth-pass\', this)">👁️</button></div>' +
     '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="' + (state.authMode === "login" ? "doLogin()" : "doSignup()") + '">' +
-      (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? tr("login_btn") : tr("signup_btn")) + '</button>' +
+      (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? "Se connecter" : "Créer mon compte") + '</button>' +
     (state.authMode === "login" ? '<button class="btn-outline" style="width:100%; margin-top:10px; text-align:center;" onclick="state.authMode=\'forgot\'; state.authError=\'\'; render();">Mot de passe oublié ?</button>' : '') +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
-    '<p class="muted" style="margin-top:14px; text-align:center;"><img src="icons/icon-192.png" alt="" style="width:20px;height:20px;border-radius:5px;vertical-align:-5px;" /> ECORoute — marketplace de capacité camion</p>' +
+    '<p class="muted" style="margin-top:14px; text-align:center;"><img src="icon-192.png?v=2" alt="" style="width:20px;height:20px;border-radius:5px;vertical-align:-5px;" /> ECORoute — marketplace de capacité camion</p>' +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
 }
@@ -464,12 +463,12 @@ function renderResetPassword() {
   document.getElementById("logoutBtn").style.display = "none";
   var h = '<div class="authwrap"><div class="authcard">' +
     '<h2 style="margin-top:0;">Choisis un nouveau mot de passe</h2>' +
-    '<div class="pwd-wrap"><input class="field" id="reset-pass" type="password" placeholder=tr("reset_new") autocomplete="new-password" />' +
+    '<div class="pwd-wrap"><input class="field" id="reset-pass" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" />' +
       '<button type="button" class="pwd-toggle" onclick="togglePwd(\'reset-pass\', this)">👁️</button></div>' +
-    '<div class="pwd-wrap"><input class="field" id="reset-pass2" type="password" placeholder=tr("reset_confirm") autocomplete="new-password" />' +
+    '<div class="pwd-wrap"><input class="field" id="reset-pass2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password" />' +
       '<button type="button" class="pwd-toggle" onclick="togglePwd(\'reset-pass2\', this)">👁️</button></div>' +
     '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="doUpdatePassword()">' +
-      (state.authBusy ? '<span class="spinner"></span>' : "") + tr("reset_update") + '</button>' +
+      (state.authBusy ? '<span class="spinner"></span>' : "") + 'Mettre à jour' + '</button>' +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
@@ -481,7 +480,7 @@ function renderProfileSetup() {
 
   if (!state._chosenRole) {
     var h0 = '<div class="authwrap"><div class="authcard">' +
-      '<h2 style="margin-top:0;">' + tr("role_question") + '</h2>' +
+      '<h2 style="margin-top:0;">Comment vas-tu utiliser ECORoute ?</h2>' +
       '<p class="muted" style="margin-top:-4px;">Ce choix est définitif pour ce compte — crée un second compte avec un autre email si tu veux aussi jouer l\'autre rôle.</p>' +
       '<button class="btn btn-dark" style="width:100%; margin-bottom:10px;" onclick="state._chosenRole=\'client\'; render();">📦 Je suis Client — je réserve du transport</button>' +
       '<button class="btn btn-amber" onclick="state._chosenRole=\'chauffeur\'; render();">🚚 Je suis Chauffeur — je transporte</button>' +
@@ -493,11 +492,11 @@ function renderProfileSetup() {
   var isDriver = state._chosenRole === "chauffeur";
   var h = '<div class="authwrap"><div class="authcard">' +
     '<h2 style="margin-top:0;">' + (isDriver ? "🚚 Profil chauffeur" : "📦 Profil client") + '</h2>' +
-    '<input class="field" id="p-prenom" placeholder=tr("ph_prenom") />' +
-    '<input class="field" id="p-nom" placeholder=tr("ph_nom") />' +
-    '<input class="field" id="p-tel" placeholder=tr("ph_tel") />' +
+    '<input class="field" id="p-prenom" placeholder="Prénom" />' +
+    '<input class="field" id="p-nom" placeholder="Nom" />' +
+    '<input class="field" id="p-tel" placeholder="Téléphone" />' +
     (isDriver ?
-      '<input class="field" id="d-license" placeholder=tr("ph_license") />' +
+      '<input class="field" id="d-license" placeholder="N° de permis de conduire" />' +
       '<input class="field" id="d-plate" placeholder="Plaque d\'immatriculation" />' +
       '<select class="field" id="d-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select>'
     : '') +
@@ -514,13 +513,13 @@ function driverOnboardingHtml() { return ""; }
 function subtabsHtml(which) {
   if (which === "chauffeur") {
     return '<div class="subtabs">' +
-      '<button class="' + (state.chauffeurSubTab === "mytrips" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'mytrips\'; render();">' + tr("tab_mytrips") + '</button>' +
-      '<button class="' + (state.chauffeurSubTab === "clientrequests" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'clientrequests\'; render();">' + tr("tab_clientrequests") + '</button></div>';
+      '<button class="' + (state.chauffeurSubTab === "mytrips" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'mytrips\'; render();">🚚 Mes trajets</button>' +
+      '<button class="' + (state.chauffeurSubTab === "clientrequests" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'clientrequests\'; render();">📋 Demandes clients</button></div>';
   }
   return '<div class="subtabs">' +
-    '<button class="' + (state.clientSubTab === "browse" ? "active" : "") + '" onclick="state.clientSubTab=\'browse\'; render();">' + tr("tab_trips") + '</button>' +
-    '<button class="' + (state.clientSubTab === "reservations" ? "active" : "") + '" onclick="state.clientSubTab=\'reservations\'; render();">' + tr("tab_reservations") + '</button>' +
-    '<button class="' + (state.clientSubTab === "requests" ? "active" : "") + '" onclick="state.clientSubTab=\'requests\'; render();">' + tr("tab_requests") + '</button></div>';
+    '<button class="' + (state.clientSubTab === "browse" ? "active" : "") + '" onclick="state.clientSubTab=\'browse\'; render();">🔍 Trajets</button>' +
+    '<button class="' + (state.clientSubTab === "reservations" ? "active" : "") + '" onclick="state.clientSubTab=\'reservations\'; render();">📄 Réservations</button>' +
+    '<button class="' + (state.clientSubTab === "requests" ? "active" : "") + '" onclick="state.clientSubTab=\'requests\'; render();">📢 Demandes</button></div>';
 }
 
 function renderChauffeur() {
@@ -542,24 +541,24 @@ function renderMyTrips() {
     '<div class="stat"><div class="num">' + (stats.avg ? stats.avg.toFixed(1) + ' ★' : "—") + '</div><div class="lbl">' + (stats.count ? stats.count + ' avis' : "aucun avis") + '</div></div></div>';
   if (stats.delivered > 0) h += '<div style="margin:-4px 0 14px;">' + stats.delivered + ' livraisons effectuées ' + tierBadge(stats.delivered) + '</div>';
 
-  h += '<div class="toprow"><h2 style="margin:0;">' + tr("my_trips") + '</h2><button class="btn btn-dark" onclick="toggleNewTrip()">' + tr("publish_trip") + '</button></div>';
+  h += '<div class="toprow"><h2 style="margin:0;">Mes trajets</h2><button class="btn btn-dark" onclick="toggleNewTrip()">+ Publier une dispo</button></div>';
 
   if (state.showNewTrip) {
     h += '<div class="card">' +
       '<div class="addr-wrap"><div class="addr-row">' +
-        '<input class="field" id="f-origin" placeholder=tr("ph_origin") value="' + esc(state._origin||"") + '" oninput="onAddressInput(\'f-origin\')" onblur="hideSuggestionsLater(\'f-origin\')" autocomplete="off" />' +
+        '<input class="field" id="f-origin" placeholder="Départ" value="' + esc(state._origin||"") + '" oninput="onAddressInput(\'f-origin\')" onblur="hideSuggestionsLater(\'f-origin\')" autocomplete="off" />' +
         '<button type="button" class="geo-btn" title="Utiliser ma position" onclick="useMyLocation(\'f-origin\', this)">📍</button></div>' +
       '<div class="suggestions" id="sugg-f-origin"></div></div>' +
-      '<div class="addr-wrap"><input class="field" id="f-dest" placeholder=tr("ph_dest") value="' + esc(state._dest||"") + '" oninput="onAddressInput(\'f-dest\')" onblur="hideSuggestionsLater(\'f-dest\')" autocomplete="off" />' +
+      '<div class="addr-wrap"><input class="field" id="f-dest" placeholder="Arrivée" value="' + esc(state._dest||"") + '" oninput="onAddressInput(\'f-dest\')" onblur="hideSuggestionsLater(\'f-dest\')" autocomplete="off" />' +
         '<div class="suggestions" id="sugg-f-dest"></div></div>' +
       '<div id="route-map"></div><div id="route-info" class="muted"></div>' +
       '<div class="grid2">' +
         '<input class="field" id="f-date" type="date" value="' + esc(state._date||"") + '" />' +
         '<select class="field" id="f-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '"' + (state._vehicle === k ? " selected" : "") + '>' + VEHICLES[k] + '</option>'; }).join("") + '</select>' +
       '</div>' +
-      '<input class="field" id="f-cap" type="number" min="0" placeholder="' + tr("ph_capacity") + '" value="' + esc(state._cap||"") + '" />' +
-      '<input class="field" id="f-price" type="number" min="0" placeholder="' + tr("ph_price") + '" value="' + esc(state._price||"") + '" />' +
-      '<button class="btn btn-amber" onclick="publishTrip()"">' + tr("publish_btn") + '</button>' +
+      '<input class="field" id="f-cap" type="number" min="0" placeholder="Capacité (m³)" value="' + esc(state._cap||"") + '" />' +
+      '<input class="field" id="f-price" type="number" min="0" placeholder="Prix / m³ (optionnel)" value="' + esc(state._price||"") + '" />' +
+      '<button class="btn btn-amber" onclick="publishTrip()">Publier</button>' +
       (state.tripError ? '<div class="error">' + esc(state.tripError) + '</div>' : '') + '</div>';
   }
 
@@ -568,7 +567,7 @@ function renderMyTrips() {
     var tripRes = state.reservations.filter(function (r) { return r.trip_id === t.id; });
     h += '<div class="card"><div class="flexwrap">' +
         '<div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b> <span class="muted">· ' + esc(t.date) + ' · ' + vehicleLabel(t.vehicle_type) + '</span><div>' + routeBadgeHtml(t) + '</div></div>' +
-        '<div class="muted">' + t.remaining + ' / ' + t.capacity + ' ' + tr("m3_available") + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
+        '<div class="muted">' + t.remaining + ' / ' + t.capacity + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
     if (tripRes.length > 0) {
       h += '<div class="reslist">';
       tripRes.forEach(function (r) {
@@ -576,9 +575,9 @@ function renderMyTrips() {
         h += '<div class="resitem"><div class="flexwrap">' +
             '<div><b>' + esc(displayName(cp)) + '</b> ' + verifiedTag(cp) + ' demande ' + r.m3 + ' m³</div>' +
             '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">' + badge(r.status) +
-              (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')"">' + tr("validate_btn") + '</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')"">' + tr("refuse_btn") + '</button>' : '') +
+              (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">Valider</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">Refuser</button>' : '') +
               (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">▶ Démarrer le trajet</button>' : '') +
-              (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')"">' + tr("mark_delivered") + '</button>' : '') +
+              (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">Marquer livré</button>' : '') +
               chatBtnHtml("reservation", r.id, displayName(cp)) + '</div></div>' +
           ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
           progressHtml(r) + '</div>';
@@ -593,17 +592,17 @@ function renderMyTrips() {
 function renderClientRequestsForDrivers() {
   var name = myId();
   var open = state.requests.filter(function (r) { return r.status === "ouverte"; });
-  var h = '<h2>' + tr("driver_requests_title") + '</h2>';
+  var h = '<h2>Demandes de trajet postées par des clients</h2>';
   if (open.length === 0) h += '<p class="muted">Aucune demande ouverte pour l\'instant.</p>';
   open.forEach(function (rq) {
     var cp = profileById(rq.client_id);
     var myOffer = state.offers.find(function (o) { return o.request_id === rq.id && o.driver_id === name; });
     h += '<div class="card"><div class="flexwrap"><div>' +
         '<div><b>' + esc(rq.origin) + ' → ' + esc(rq.destination) + '</b></div>' +
-        '<div class="muted">' + esc(rq.date) + ' · ' + rq.m3_needed + ' ' + tr("m3_wanted") + ' · ' + esc(displayName(cp)) + ' ' + verifiedTag(cp) + '</div>' +
+        '<div class="muted">' + esc(rq.date) + ' · ' + rq.m3_needed + ' m³ souhaités · ' + esc(displayName(cp)) + ' ' + verifiedTag(cp) + '</div>' +
         (rq.note ? '<div class="muted" style="margin-top:3px;">"' + esc(rq.note) + '"</div>' : '') +
         '<div>' + routeBadgeHtml(rq) + '</div></div>' +
-        (myOffer ? badge(myOffer.status) : '<div><select class="field" style="width:auto; display:inline-block; margin:0 6px 0 0;" id="veh-' + rq.id + '">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select><button class="btn btn-amber" style="width:auto;" onclick="offerOnRequest(\'' + rq.id + '\')"">' + tr("im_interested") + '</button></div>') +
+        (myOffer ? badge(myOffer.status) : '<div><select class="field" style="width:auto; display:inline-block; margin:0 6px 0 0;" id="veh-' + rq.id + '">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select><button class="btn btn-amber" style="width:auto;" onclick="offerOnRequest(\'' + rq.id + '\')">Je suis intéressé</button></div>') +
       '</div>';
     if (myOffer) {
       h += ((myOffer.status === "acceptee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
@@ -623,7 +622,7 @@ function renderClient() {
 
 function renderBrowseTrips() {
   var h = '<input class="field" id="searchInput" placeholder="Rechercher un trajet (ville de départ ou d\'arrivée)" value="' + esc(state.search) + '" oninput="state.search=this.value; state.tripsPage=1; render(); var el=document.getElementById(\'searchInput\'); el.focus(); el.selectionStart=el.value.length;" />';
-  h += '<div class="toprow"><h2 style="margin:0;">' + tr("trips_available") + '</h2>' +
+  h += '<div class="toprow"><h2 style="margin:0;">Trajets disponibles</h2>' +
     '<select class="field" style="width:auto; margin:0;" onchange="state.sortBy=this.value; state.tripsPage=1; render();">' +
       '<option value="date"' + (state.sortBy === "date" ? " selected" : "") + '>Trier : date</option>' +
       '<option value="prix"' + (state.sortBy === "prix" ? " selected" : "") + '>Trier : prix</option>' +
@@ -636,7 +635,7 @@ function renderBrowseTrips() {
   if (state.tripsPage > totalPages) state.tripsPage = totalPages;
   var pageItems = available.slice((state.tripsPage - 1) * state.tripsPageSize, state.tripsPage * state.tripsPageSize);
 
-  if (available.length === 0) h += '<p class="muted">' + tr("no_trips") + '</p>';
+  if (available.length === 0) h += '<p class="muted">Aucun trajet disponible pour le moment.</p>';
   pageItems.forEach(function (t) {
     var dp = profileById(t.driver_id);
     var stats = driverStats(t.driver_id);
@@ -648,7 +647,7 @@ function renderBrowseTrips() {
         '<span class="avatar-sm">' + profileInitials(dp) + '</span>' +
         '<span>' + esc(t.date) + '</span>' +
         (stats.avg ? '<span>★ ' + stats.avg.toFixed(1) + '</span>' : '') +
-      '</div><span class="muted">' + t.remaining + ' ' + tr("m3_available") + '</span></div>';
+      '</div><span class="muted">' + t.remaining + ' m³ dispo</span></div>';
     if (isOpen) {
       h += '<div class="trip-details" onclick="event.stopPropagation();">' +
         '<div class="flexwrap" style="margin-bottom:8px;">' +
@@ -657,11 +656,11 @@ function renderBrowseTrips() {
         '</div>' +
         (t.distance_km ? '<div style="margin-bottom:8px;">' + routeBadgeHtml(t) + '</div>' : '') +
         (state.reserveFor === t.id ?
-          '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="' + tr("m3_wanted") + '" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
+          '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="m³ souhaités" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
           ' <span class="muted" id="estimate-txt"></span><br/>' +
-          '<button class="btn btn-amber" style="width:auto;" onclick="submitReservation(\'' + t.id + '\')"">' + tr("send_request") + '</button>' +
+          '<button class="btn btn-amber" style="width:auto;" onclick="submitReservation(\'' + t.id + '\')">Envoyer la demande</button>' +
           (state.reserveError ? '<div class="error">' + esc(state.reserveError) + '</div>' : '')
-        : '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')"">' + tr("reserve_btn") + '</button>') +
+        : '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">Réserver</button>') +
       '</div>';
     }
     h += '</div>';
@@ -680,8 +679,8 @@ function renderBrowseTrips() {
 function renderMyReservationsOnly() {
   var name = myId();
   var myRes = state.reservations.filter(function (r) { return r.client_id === name; });
-  var h = '<h2 style="margin-top:0;">' + tr("my_reservations") + '</h2>';
-  if (myRes.length === 0) { h += '<p class="muted">' + tr("no_reservations") + '</p>'; return h; }
+  var h = '<h2 style="margin-top:0;">Mes réservations</h2>';
+  if (myRes.length === 0) { h += '<p class="muted">Aucune réservation pour l\'instant. Réserve un trajet depuis l\'onglet "Trajets".</p>'; return h; }
   h += ratingHint();
 
   var totalPages = Math.max(1, Math.ceil(myRes.length / state.resPageSize));
@@ -704,7 +703,7 @@ function renderMyReservationsOnly() {
         progressHtml(r) +
         (r.status === "terminee" ? co2Html(r, t) + ratingWidget(r) : '') +
         '<div class="flexwrap" style="margin-top:8px;">' +
-          (r.status === "en_attente" ? '<button class="btn-outline" onclick="decide(\'' + r.id + '\',\'annulee\')"">' + tr("cancel_btn") + '</button>' : '<span></span>') +
+          (r.status === "en_attente" ? '<button class="btn-outline" onclick="decide(\'' + r.id + '\',\'annulee\')">Annuler</button>' : '<span></span>') +
           chatBtnHtml("reservation", r.id, dp ? displayName(dp) : "Chauffeur") +
         '</div>' +
       '</div>';
@@ -724,20 +723,20 @@ function renderMyReservationsOnly() {
 
 function renderMyRequests() {
   var name = myId();
-  var h = '<div class="toprow"><h2 style="margin:0;">' + tr("my_requests_title") + '</h2><button class="btn btn-dark" onclick="toggleNewRequest()">' + tr("post_request") + '</button></div>';
+  var h = '<div class="toprow"><h2 style="margin:0;">Mes demandes de trajet</h2><button class="btn btn-dark" onclick="toggleNewRequest()">+ Poster une demande</button></div>';
 
   if (state.showNewRequest) {
     h += '<div class="card">' +
       '<div class="addr-wrap"><div class="addr-row">' +
-        '<input class="field" id="r-origin" placeholder=tr("ph_origin") value="' + esc(state._rOrigin||"") + '" oninput="onAddressInput(\'r-origin\')" onblur="hideSuggestionsLater(\'r-origin\')" autocomplete="off" />' +
+        '<input class="field" id="r-origin" placeholder="Départ" value="' + esc(state._rOrigin||"") + '" oninput="onAddressInput(\'r-origin\')" onblur="hideSuggestionsLater(\'r-origin\')" autocomplete="off" />' +
         '<button type="button" class="geo-btn" title="Utiliser ma position" onclick="useMyLocation(\'r-origin\', this)">📍</button></div>' +
       '<div class="suggestions" id="sugg-r-origin"></div></div>' +
-      '<div class="addr-wrap"><input class="field" id="r-dest" placeholder=tr("ph_dest") value="' + esc(state._rDest||"") + '" oninput="onAddressInput(\'r-dest\')" onblur="hideSuggestionsLater(\'r-dest\')" autocomplete="off" />' +
+      '<div class="addr-wrap"><input class="field" id="r-dest" placeholder="Arrivée" value="' + esc(state._rDest||"") + '" oninput="onAddressInput(\'r-dest\')" onblur="hideSuggestionsLater(\'r-dest\')" autocomplete="off" />' +
         '<div class="suggestions" id="sugg-r-dest"></div></div>' +
       '<div id="route-map"></div><div id="route-info" class="muted"></div>' +
       '<input class="field" id="r-date" type="date" value="' + esc(state._rDate||"") + '" />' +
-      '<input class="field" id="r-m3" type="number" min="1" placeholder="' + tr("ph_m3_needed") + '" value="' + esc(state._rM3||"") + '" />' +
-      '<input class="field" id="r-note" placeholder=tr("ph_note") value="' + esc(state._rNote||"") + '" />' +
+      '<input class="field" id="r-m3" type="number" min="1" placeholder="m³ nécessaires" value="' + esc(state._rM3||"") + '" />' +
+      '<input class="field" id="r-note" placeholder="Note pour les chauffeurs (optionnel)" value="' + esc(state._rNote||"") + '" />' +
       '<button class="btn btn-amber" onclick="publishRequest()">Publier la demande</button>' +
       (state.reqError ? '<div class="error">' + esc(state.reqError) + '</div>' : '') + '</div>';
   }
@@ -754,7 +753,7 @@ function renderMyRequests() {
         var dp = profileById(o.driver_id);
         h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(displayName(dp)) + '</b> ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + ' · ' + vehicleLabel(o.vehicle_type) + '</div>' +
             '<div style="display:flex; gap:6px; align-items:center;">' + badge(o.status) +
-              (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')"">' + tr("accept_btn") + '</button>' : '') +
+              (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')">Accepter</button>' : '') +
               chatBtnHtml("offer", o.id, displayName(dp)) + '</div></div>' +
           (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp ? dp.tel : "") + '</div>' : '') + '</div>';
       });
@@ -873,7 +872,4 @@ async function acceptOffer(reqId, offerId) {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
 }
-document.documentElement.setAttribute("lang", state.lang);
-document.documentElement.setAttribute("dir", state.lang === "ar" ? "rtl" : "ltr");
-document.getElementById("langSelect").value = state.lang;
 initAuth();
