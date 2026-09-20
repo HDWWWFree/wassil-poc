@@ -1,6 +1,6 @@
 {
-  "name": "RoutECO — réservation de capacité camion",
-  "short_name": "RoutECO",
+  "name": "ECORoute — réservation de capacité camion",
+  "short_name": "ECORoute",
   "description": "Marketplace de réservation de capacité de chargement pour camions",
   "start_url": "./index.html",
   "scope": "./",
