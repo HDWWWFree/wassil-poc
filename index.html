@@ -82,6 +82,16 @@
   .profilebar { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 13px 15px; margin-bottom: 14px; }
   .profilebar .summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; }
   .avatar { width: 32px; height: 32px; border-radius: 50%; background: #0f172a; color: #f59e0b; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; margin-right: 9px; }
+  .avatar-sm { width: 20px; height: 20px; border-radius: 50%; background: #0f172a; color: #f59e0b; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px; flex-shrink: 0; }
+  .trip-row { cursor: pointer; }
+  .trip-row-line1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .trip-row-route { font-size: 15px; font-weight: 700; }
+  .trip-row-price { font-size: 15px; font-weight: 700; color: #b45309; white-space: nowrap; }
+  [data-theme="dark"] .trip-row-price { color: #fbbf24; }
+  .trip-row-line2 { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; gap: 8px; }
+  .trip-row-line2-left { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); min-width: 0; }
+  .trip-row-line2-left span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trip-details { border-top: 1px dashed var(--border); margin-top: 9px; padding-top: 9px; font-size: 12.5px; }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
   .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
   .stat .num { font-size: 18px; font-weight: 800; color: var(--text); }
@@ -163,7 +173,7 @@ var state = {
   editingProfile: false, profileError: "", _chosenRole: null,
   search: "", sortBy: "date",
   showNewTrip: false, showNewRequest: false,
-  reserveFor: null, openThread: null, openReqThread: null,
+  reserveFor: null, expandedTrip: null, openThread: null, openReqThread: null,
   messages: {},
   tripError: "", reserveError: "", reqError: ""
 };
@@ -171,6 +181,7 @@ var state = {
 function myId() { return state.session ? state.session.user.id : null; }
 function profileById(id) { return state.profilesById[id] || null; }
 function displayName(p) { return p ? (p.prenom + " " + p.nom) : "—"; }
+function profileInitials(p) { if (!p) return "?"; return (((p.prenom||"")[0]||"") + ((p.nom||"")[0]||"")).toUpperCase(); }
 function verifiedTag(p) { return p && p.verified ? '<span class="verified">✅ Vérifié</span>' : ""; }
 
 // ================= thème =================
@@ -743,17 +754,29 @@ function renderBrowseTrips() {
   available.forEach(function (t) {
     var dp = profileById(t.driver_id);
     var stats = driverStats(t.driver_id);
-    h += '<div class="card"><div class="flexwrap"><div><div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b></div>' +
-        '<div class="muted">' + esc(t.date) + ' · ' + esc(displayName(dp)) + ' ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + ' · ' + vehicleLabel(t.vehicle_type) + ' · ' + t.remaining + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div>' +
-        '<div style="margin-top:3px; font-size:12px;">' + starsDisplay(stats.avg, stats.count) + tierBadge(stats.delivered) + '</div>' +
-        '<div>' + routeBadgeHtml(t) + '</div></div>' +
-        '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">Réserver</button></div>';
-    if (state.reserveFor === t.id) {
-      h += '<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">' +
-        '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="m³ souhaités" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
-        ' <span class="muted" id="estimate-txt"></span><br/>' +
-        '<button class="btn btn-amber" style="width:auto;" onclick="submitReservation(\'' + t.id + '\')">Envoyer la demande</button>' +
-        (state.reserveError ? '<div class="error">' + esc(state.reserveError) + '</div>' : '') + '</div>';
+    var isOpen = state.expandedTrip === t.id;
+    h += '<div class="card trip-row" onclick="toggleTripExpand(\'' + t.id + '\')">' +
+      '<div class="trip-row-line1"><span class="trip-row-route">' + esc(t.origin) + ' → ' + esc(t.destination) + '</span>' +
+        (t.price ? '<span class="trip-row-price">' + t.price + '/m³</span>' : '<span class="trip-row-price muted">prix à discuter</span>') + '</div>' +
+      '<div class="trip-row-line2"><div class="trip-row-line2-left">' +
+        '<span class="avatar-sm">' + profileInitials(dp) + '</span>' +
+        '<span>' + esc(t.date) + '</span>' +
+        (stats.avg ? '<span>★ ' + stats.avg.toFixed(1) + '</span>' : '') +
+      '</div><span class="muted">' + t.remaining + ' m³ dispo</span></div>';
+    if (isOpen) {
+      h += '<div class="trip-details" onclick="event.stopPropagation();">' +
+        '<div class="flexwrap" style="margin-bottom:8px;">' +
+          '<span>' + esc(displayName(dp)) + ' ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + tierBadge(stats.delivered) + '</span>' +
+          '<span class="muted">' + vehicleLabel(t.vehicle_type) + '</span>' +
+        '</div>' +
+        (t.distance_km ? '<div style="margin-bottom:8px;">' + routeBadgeHtml(t) + '</div>' : '') +
+        (state.reserveFor === t.id ?
+          '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="m³ souhaités" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
+          ' <span class="muted" id="estimate-txt"></span><br/>' +
+          '<button class="btn btn-amber" style="width:auto;" onclick="submitReservation(\'' + t.id + '\')">Envoyer la demande</button>' +
+          (state.reserveError ? '<div class="error">' + esc(state.reserveError) + '</div>' : '')
+        : '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">Réserver</button>') +
+      '</div>';
     }
     h += '</div>';
   });
@@ -829,6 +852,7 @@ function toggleNewTrip() {
   state.showNewTrip = !state.showNewTrip; state.tripError = ""; coords = { origin: null, dest: null }; routeInfo = null; render();
 }
 function toggleReserve(id) { state.reserveFor = state.reserveFor === id ? null : id; state.reserveError = ""; render(); }
+function toggleTripExpand(id) { state.expandedTrip = state.expandedTrip === id ? null : id; if (state.expandedTrip !== id) { state.reserveFor = null; } render(); }
 function toggleNewRequest() { state.showNewRequest = !state.showNewRequest; state.reqError = ""; coords = { origin: null, dest: null }; routeInfo = null; render(); }
 
 async function publishTrip() {
