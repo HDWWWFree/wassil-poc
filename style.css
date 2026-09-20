@@ -72,6 +72,14 @@ header .brand .tagline { font: 400 .7rem var(--font-body); color: var(--muted); 
 .idbox .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
 .theme-btn, .logout-btn { background: var(--surface); border: 1px solid var(--line); color: var(--ink); height: 32px; border-radius: 16px; cursor: pointer; font-size: 13px; padding: 0 10px; }
 .theme-btn { width: 32px; padding: 0; border-radius: 50%; }
+.lang-select {
+  -webkit-appearance: none; appearance: none;
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+  height: 32px; min-width: 52px; border-radius: 16px; padding: 0 22px 0 10px; font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%235a747d'%3E%3Cpath d='M5.5 7.5l4.5 5 4.5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 6px center; background-size: 14px;
+}
 
 main { max-width: 780px; margin: 0 auto; padding: 16px; }
 .authwrap { max-width: 380px; margin: 40px auto; padding: 0 16px; }
