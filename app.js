@@ -354,22 +354,32 @@ function renderChatOverlay() {
     var t = new Date(m.created_at); var hh = ("0" + t.getHours()).slice(-2), mm = ("0" + t.getMinutes()).slice(-2);
     return '<div class="chat-row ' + (mine ? "me" : "other") + '"><div class="chat-bubble"><div class="txt">' + esc(m.text) + '</div><div class="chat-time">' + hh + ':' + mm + '</div></div></div>';
   }).join("");
-  if (!msgs) msgs = '<p class="muted" style="text-align:center; margin-top:20px;">Aucun message pour l\'instant.</p>';
+  if (!msgs) msgs = '<p class="muted" style="text-align:center; margin-top:20px;">' + tr("no_messages") + '</p>';
+
+  var quickEmojis = ["👍", "✅", "📦", "🚚", "⏰", "📍", "🙏", "😊"];
+  var emojiRow = quickEmojis.map(function (e) { return '<button type="button" class="emoji-chip" onclick="insertEmoji(' + jsStr(e) + ')">' + e + '</button>'; }).join("");
 
   el.innerHTML = '<div class="chat-backdrop" onclick="if(event.target===this)closeChat();">' +
     '<div class="chat-sheet">' +
-      '<div class="chat-header"><span class="avatar" style="margin:0;">' + esc((ac.withName||"?").slice(0,2).toUpperCase()) + '</span>' +
-        '<span class="name">' + esc(ac.withName || "Chat") + '</span>' +
+      '<div class="chat-header"><span class="avatar chat-avatar-eco" style="margin:0;">' + esc((ac.withName||"?").slice(0,2).toUpperCase()) + '</span>' +
+        '<div class="chat-header-txt"><span class="name">' + esc(ac.withName || "Chat") + '</span><span class="chat-sub">🍃 ECORoute</span></div>' +
         '<button class="chat-close" onclick="closeChat()">✕</button></div>' +
       '<div class="chat-msgs" id="chat-msgs">' + msgs + '</div>' +
+      '<div class="chat-emojibar">' + emojiRow + '</div>' +
       '<div class="chat-inputbar">' +
-        '<input type="text" id="chat-input" placeholder="Écrire un message" onkeydown="if(event.key===\'Enter\')sendChatMessage()" />' +
+        '<input type="text" id="chat-input" placeholder="' + tr("write_message") + '" onkeydown="if(event.key===\'Enter\')sendChatMessage()" />' +
         '<button class="chat-send" onclick="sendChatMessage()">➤</button>' +
       '</div>' +
     '</div></div>';
 
   var box = document.getElementById("chat-msgs");
   if (box) box.scrollTop = box.scrollHeight;
+}
+function insertEmoji(e) {
+  var input = document.getElementById("chat-input");
+  if (!input) return;
+  input.value += e;
+  input.focus();
 }
 function ratingHint() { return '<p class="muted" style="margin:2px 0 10px;">ℹ️ La notation apparaît une fois la réservation "Livrée".</p>'; }
 function ratingWidget(r) {

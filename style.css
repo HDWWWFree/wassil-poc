@@ -194,10 +194,17 @@ select.field { -webkit-appearance:none; appearance:none; }
 
 .chat-backdrop { position: fixed; inset: 0; background: rgb(6 20 25 / .55); z-index: 200; display: flex; align-items: flex-end; }
 .chat-sheet { background: var(--surface); width: 100%; max-width: 780px; margin: 0 auto; border-radius: 18px 18px 0 0; height: 82vh; display: flex; flex-direction: column; }
-.chat-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.chat-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; flex-shrink: 0; background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 75%, #22c55e)); border-radius: 18px 18px 0 0; }
+.chat-avatar-eco { background: rgba(255,255,255,.22) !important; color: #fff !important; }
+.chat-header-txt { flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.chat-header .name { font: 700 .95rem var(--font-display); color: #fff; }
+.chat-sub { font-size: 11px; color: rgba(255,255,255,.85); }
+.chat-emojibar { display: flex; gap: 6px; overflow-x: auto; padding: 6px 16px; flex-shrink: 0; }
+.emoji-chip { font-size: 18px; background: var(--surface-2); border: none; border-radius: 50%; width: 34px; height: 34px; flex-shrink: 0; cursor: pointer; }
+.emoji-chip:active { background: var(--brand-soft); }
 .chat-header .avatar { margin: 0; }
 .chat-header .name { font: 700 .95rem var(--font-display); flex: 1; color: var(--ink); }
-.chat-close { background: var(--surface-2); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 15px; color: var(--muted); flex-shrink: 0; }
+.chat-close { background: rgba(255,255,255,.22); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 15px; color: #fff; flex-shrink: 0; }
 .chat-msgs { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .chat-row { display: flex; gap: 6px; align-items: flex-end; }
 .chat-row.me { justify-content: flex-end; }
