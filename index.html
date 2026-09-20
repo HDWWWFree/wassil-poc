@@ -204,7 +204,7 @@ var state = {
   search: "", sortBy: "date", tripsPage: 1, tripsPageSize: 10,
   showNewTrip: false, showNewRequest: false,
   reserveFor: null, expandedTrip: null, activeChat: null,
-  messages: {},
+  messages: {}, messageMeta: [],
   tripError: "", reserveError: "", reqError: ""
 };
 
@@ -415,16 +415,18 @@ async function saveProfileToDb() {
 // ================= chargement des données =================
 var dataChannel = null, threadChannel = null;
 async function loadAllData() {
-  var [profilesRes, tripsRes, resvRes, reqRes, offRes] = await Promise.all([
+  var [profilesRes, tripsRes, resvRes, reqRes, offRes, msgMetaRes] = await Promise.all([
     sb.from("profiles").select("*"),
     sb.from("trips").select("*").order("created_at", { ascending: false }),
     sb.from("reservations").select("*").order("created_at", { ascending: false }),
     sb.from("requests").select("*").order("created_at", { ascending: false }),
-    sb.from("request_offers").select("*").order("created_at", { ascending: false })
+    sb.from("request_offers").select("*").order("created_at", { ascending: false }),
+    sb.from("messages").select("thread_type, thread_id, sender_id, created_at").order("created_at", { ascending: false })
   ]);
   state.profilesById = {}; (profilesRes.data || []).forEach(function (p) { state.profilesById[p.id] = p; });
   state.trips = tripsRes.data || []; state.reservations = resvRes.data || [];
   state.requests = reqRes.data || []; state.offers = offRes.data || [];
+  state.messageMeta = msgMetaRes.data || [];
 }
 function subscribeRealtime() {
   if (dataChannel) return;
@@ -434,12 +436,29 @@ function subscribeRealtime() {
     .on("postgres_changes", { event: "*", schema: "public", table: "requests" }, handleDataChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "request_offers" }, handleDataChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, handleDataChange)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, handleDataChange)
     .subscribe();
 }
 function handleDataChange() { loadAllData().then(render); }
 
 // ================= messages (chat) =================
 function threadKey(type, id) { return type + ":" + id; }
+function lastSeenKey(type, id) { return "seen:" + type + ":" + id; }
+function getLastSeen(type, id) { try { return localStorage.getItem(lastSeenKey(type, id)) || ""; } catch (e) { return ""; } }
+function markSeen(type, id) { try { localStorage.setItem(lastSeenKey(type, id), new Date().toISOString()); } catch (e) {} }
+function hasUnread(type, id) {
+  for (var i = 0; i < state.messageMeta.length; i++) {
+    var m = state.messageMeta[i];
+    if (m.thread_type === type && m.thread_id === id && m.sender_id !== myId()) {
+      return m.created_at > getLastSeen(type, id);
+    }
+  }
+  return false;
+}
+function chatBtnHtml(type, id, withName) {
+  var dot = hasUnread(type, id) ? '<span style="position:absolute; top:-2px; right:-2px; width:9px; height:9px; border-radius:50%; background:#dc2626; border:2px solid var(--card);"></span>' : "";
+  return '<span style="position:relative; display:inline-block;"><button class="chat-icon-btn" onclick="openChat(' + jsStr(type) + ',' + jsStr(id) + ',' + jsStr(withName) + ')" title="Chat">💬</button>' + dot + '</span>';
+}
 async function loadThreadMessages(type, id) {
   var { data } = await sb.from("messages").select("*").eq("thread_type", type).eq("thread_id", id).order("created_at");
   state.messages[threadKey(type, id)] = data || [];
@@ -452,20 +471,24 @@ function subscribeThread(type, id) {
       var key = threadKey(type, id);
       var arr = state.messages[key] || [];
       if (!arr.find(function (m) { return m.id === payload.new.id; })) arr = arr.concat([payload.new]);
-      state.messages[key] = arr; renderChatOverlay();
+      state.messages[key] = arr; markSeen(type, id); renderChatOverlay();
     }).subscribe();
 }
 async function openChat(type, id, withName) {
   state.activeChat = { type: type, id: id, withName: withName };
+  markSeen(type, id);
   renderChatOverlay();
   await loadThreadMessages(type, id);
   subscribeThread(type, id);
   renderChatOverlay();
 }
 function closeChat() {
+  var ac = state.activeChat;
+  if (ac) markSeen(ac.type, ac.id);
   state.activeChat = null;
   if (threadChannel) { sb.removeChannel(threadChannel); threadChannel = null; }
   renderChatOverlay();
+  render();
 }
 async function sendChatMessage() {
   var input = document.getElementById("chat-input"); if (!input) return;
@@ -745,7 +768,7 @@ function renderMyTrips() {
               (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">Valider</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">Refuser</button>' : '') +
               (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">▶ Démarrer le trajet</button>' : '') +
               (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">Marquer livré</button>' : '') +
-              '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + jsStr(displayName(cp)) + ')" title="Chat">💬</button></div></div>' +
+              chatBtnHtml("reservation", r.id, displayName(cp)) + '</div></div>' +
           ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
           progressHtml(r) + '</div>';
       });
@@ -773,7 +796,7 @@ function renderClientRequestsForDrivers() {
       '</div>';
     if (myOffer) {
       h += ((myOffer.status === "acceptee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
-        '<div style="margin-top:8px;"><button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + myOffer.id + '\',' + jsStr(displayName(cp)) + ')" title="Chat">💬</button></div>';
+        '<div style="margin-top:8px;">' + chatBtnHtml("offer", myOffer.id, displayName(cp)) + '</div>';
     }
     h += '</div>';
   });
@@ -853,7 +876,7 @@ function renderMyReservationsOnly() {
     h += '<div class="card"><div class="flexwrap"><div><b>' + tripLabel(r.trip_id) + '</b> · ' + r.m3 + ' m³</div>' +
         '<div style="display:flex; gap:6px; align-items:center;">' + badge(r.status) +
           (r.status === "en_attente" ? '<button class="btn-outline" onclick="decide(\'' + r.id + '\',\'annulee\')">Annuler</button>' : '') +
-          '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + jsStr(dp ? displayName(dp) : "Chauffeur") + ')" title="Chat">💬</button></div></div>' +
+          chatBtnHtml("reservation", r.id, dp ? displayName(dp) : "Chauffeur") + '</div></div>' +
       ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") && dp ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp.tel) + '</div>' : '') +
       (t ? '<div>' + routeBadgeHtml(t) + '</div>' : '') + progressHtml(r) +
       (r.status === "terminee" ? co2Html(r, t) + ratingWidget(r) : '') + '</div>';
@@ -894,7 +917,7 @@ function renderMyRequests() {
         h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(displayName(dp)) + '</b> ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + ' · ' + vehicleLabel(o.vehicle_type) + '</div>' +
             '<div style="display:flex; gap:6px; align-items:center;">' + badge(o.status) +
               (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')">Accepter</button>' : '') +
-              '<button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + o.id + '\',' + jsStr(displayName(dp)) + ')" title="Chat">💬</button></div></div>' +
+              chatBtnHtml("offer", o.id, displayName(dp)) + '</div></div>' +
           (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp ? dp.tel : "") + '</div>' : '') + '</div>';
       });
       h += '</div>';
