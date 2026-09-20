@@ -137,6 +137,12 @@
   .authtabs button.active { background: var(--card); color: var(--text); }
   .spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .pwd-wrap { position: relative; }
+  .pwd-wrap input { padding-right: 38px; }
+  .pwd-toggle { position: absolute; right: 4px; top: 4px; background: none; border: none; cursor: pointer; font-size: 15px; padding: 6px; }
+  .pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+  .pager button { width: 34px; height: 34px; padding: 0; border-radius: 8px; border: 1px solid var(--fieldborder); background: var(--card); cursor: pointer; font-size: 15px; }
+  .pager button:disabled { opacity: .35; cursor: default; }
 </style>
 </head>
 <body>
@@ -171,7 +177,7 @@ var state = {
   clientSubTab: "browse", chauffeurSubTab: "mytrips",
   authMode: "login", authError: "", authBusy: false,
   editingProfile: false, profileError: "", _chosenRole: null,
-  search: "", sortBy: "date",
+  search: "", sortBy: "date", tripsPage: 1, tripsPageSize: 10,
   showNewTrip: false, showNewRequest: false,
   reserveFor: null, expandedTrip: null, openThread: null, openReqThread: null,
   messages: {},
@@ -185,6 +191,11 @@ function profileInitials(p) { if (!p) return "?"; return (((p.prenom||"")[0]||""
 function verifiedTag(p) { return p && p.verified ? '<span class="verified">✅ Vérifié</span>' : ""; }
 
 // ================= thème =================
+function togglePwd(fieldId, btn) {
+  var el = document.getElementById(fieldId);
+  if (el.type === "password") { el.type = "text"; btn.textContent = "🙈"; }
+  else { el.type = "password"; btn.textContent = "👁️"; }
+}
 function toggleTheme() {
   var el = document.documentElement; var dark = el.getAttribute("data-theme") === "dark";
   el.setAttribute("data-theme", dark ? "light" : "dark");
@@ -568,7 +579,8 @@ function renderAuth() {
       '<button class="' + (state.authMode === "signup" ? "active" : "") + '" onclick="state.authMode=\'signup\'; state.authError=\'\'; render();">Créer un compte</button>' +
     '</div>' +
     '<input class="field" id="auth-email" type="email" placeholder="Email" autocomplete="username" />' +
-    '<input class="field" id="auth-pass" type="password" placeholder="Mot de passe" autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
+    '<div class="pwd-wrap"><input class="field" id="auth-pass" type="password" placeholder="Mot de passe" autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
+      '<button type="button" class="pwd-toggle" onclick="togglePwd(\'auth-pass\', this)">👁️</button></div>' +
     '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="' + (state.authMode === "login" ? "doLogin()" : "doSignup()") + '">' +
       (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? "Se connecter" : "Créer mon compte") + '</button>' +
     (state.authMode === "login" ? '<button class="btn-outline" style="width:100%; margin-top:10px; text-align:center;" onclick="state.authMode=\'forgot\'; state.authError=\'\'; render();">Mot de passe oublié ?</button>' : '') +
@@ -583,8 +595,10 @@ function renderResetPassword() {
   document.getElementById("logoutBtn").style.display = "none";
   var h = '<div class="authwrap"><div class="authcard">' +
     '<h2 style="margin-top:0;">Choisis un nouveau mot de passe</h2>' +
-    '<input class="field" id="reset-pass" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" />' +
-    '<input class="field" id="reset-pass2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password" />' +
+    '<div class="pwd-wrap"><input class="field" id="reset-pass" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" />' +
+      '<button type="button" class="pwd-toggle" onclick="togglePwd(\'reset-pass\', this)">👁️</button></div>' +
+    '<div class="pwd-wrap"><input class="field" id="reset-pass2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password" />' +
+      '<button type="button" class="pwd-toggle" onclick="togglePwd(\'reset-pass2\', this)">👁️</button></div>' +
     '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="doUpdatePassword()">' +
       (state.authBusy ? '<span class="spinner"></span>' : "") + 'Mettre à jour' + '</button>' +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
@@ -635,8 +649,9 @@ function subtabsHtml(which) {
       '<button class="' + (state.chauffeurSubTab === "clientrequests" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'clientrequests\'; render();">📋 Demandes clients</button></div>';
   }
   return '<div class="subtabs">' +
-    '<button class="' + (state.clientSubTab === "browse" ? "active" : "") + '" onclick="state.clientSubTab=\'browse\'; render();">🔍 Trajets dispo</button>' +
-    '<button class="' + (state.clientSubTab === "requests" ? "active" : "") + '" onclick="state.clientSubTab=\'requests\'; render();">📢 Mes demandes</button></div>';
+    '<button class="' + (state.clientSubTab === "browse" ? "active" : "") + '" onclick="state.clientSubTab=\'browse\'; render();">🔍 Trajets</button>' +
+    '<button class="' + (state.clientSubTab === "reservations" ? "active" : "") + '" onclick="state.clientSubTab=\'reservations\'; render();">📄 Réservations</button>' +
+    '<button class="' + (state.clientSubTab === "requests" ? "active" : "") + '" onclick="state.clientSubTab=\'requests\'; render();">📢 Demandes</button></div>';
 }
 
 function renderChauffeur() {
@@ -735,14 +750,14 @@ function renderClientRequestsForDrivers() {
 function renderClient() {
   var h = subtabsHtml("client");
   if (state.clientSubTab === "requests") return h + renderMyRequests();
+  if (state.clientSubTab === "reservations") return h + renderMyReservationsOnly();
   return h + renderBrowseTrips();
 }
 
 function renderBrowseTrips() {
-  var name = myId();
-  var h = '<input class="field" id="searchInput" placeholder="Rechercher un trajet (ville de départ ou d\'arrivée)" value="' + esc(state.search) + '" oninput="state.search=this.value; render(); var el=document.getElementById(\'searchInput\'); el.focus(); el.selectionStart=el.value.length;" />';
+  var h = '<input class="field" id="searchInput" placeholder="Rechercher un trajet (ville de départ ou d\'arrivée)" value="' + esc(state.search) + '" oninput="state.search=this.value; state.tripsPage=1; render(); var el=document.getElementById(\'searchInput\'); el.focus(); el.selectionStart=el.value.length;" />';
   h += '<div class="toprow"><h2 style="margin:0;">Trajets disponibles</h2>' +
-    '<select class="field" style="width:auto; margin:0;" onchange="state.sortBy=this.value; render();">' +
+    '<select class="field" style="width:auto; margin:0;" onchange="state.sortBy=this.value; state.tripsPage=1; render();">' +
       '<option value="date"' + (state.sortBy === "date" ? " selected" : "") + '>Trier : date</option>' +
       '<option value="prix"' + (state.sortBy === "prix" ? " selected" : "") + '>Trier : prix</option>' +
       '<option value="capacite"' + (state.sortBy === "capacite" ? " selected" : "") + '>Trier : capacité dispo</option></select></div>';
@@ -750,8 +765,12 @@ function renderBrowseTrips() {
   var available = state.trips.filter(function (t) { return t.remaining > 0; }).filter(function (t) { if (!state.search.trim()) return true; return (t.origin + t.destination).toLowerCase().indexOf(state.search.trim().toLowerCase()) !== -1; });
   available = available.slice().sort(function (a, b) { if (state.sortBy === "prix") return (a.price||0) - (b.price||0); if (state.sortBy === "capacite") return b.remaining - a.remaining; return new Date(a.date) - new Date(b.date); });
 
+  var totalPages = Math.max(1, Math.ceil(available.length / state.tripsPageSize));
+  if (state.tripsPage > totalPages) state.tripsPage = totalPages;
+  var pageItems = available.slice((state.tripsPage - 1) * state.tripsPageSize, state.tripsPage * state.tripsPageSize);
+
   if (available.length === 0) h += '<p class="muted">Aucun trajet disponible pour le moment.</p>';
-  available.forEach(function (t) {
+  pageItems.forEach(function (t) {
     var dp = profileById(t.driver_id);
     var stats = driverStats(t.driver_id);
     var isOpen = state.expandedTrip === t.id;
@@ -781,9 +800,21 @@ function renderBrowseTrips() {
     h += '</div>';
   });
 
+  if (available.length > state.tripsPageSize) {
+    h += '<div class="pager">' +
+      '<button ' + (state.tripsPage <= 1 ? "disabled" : "") + ' onclick="state.tripsPage--; render();">‹</button>' +
+      '<span class="muted">Page ' + state.tripsPage + ' sur ' + totalPages + '</span>' +
+      '<button ' + (state.tripsPage >= totalPages ? "disabled" : "") + ' onclick="state.tripsPage++; render();">›</button>' +
+    '</div>';
+  }
+  return h;
+}
+
+function renderMyReservationsOnly() {
+  var name = myId();
   var myRes = state.reservations.filter(function (r) { return r.client_id === name; });
-  h += '<h2>Mes réservations</h2>';
-  if (myRes.length === 0) h += '<p class="muted">Aucune réservation pour l\'instant.</p>'; else h += ratingHint();
+  var h = '<h2 style="margin-top:0;">Mes réservations</h2>';
+  if (myRes.length === 0) h += '<p class="muted">Aucune réservation pour l\'instant. Réserve un trajet depuis l\'onglet "Trajets".</p>'; else h += ratingHint();
   myRes.forEach(function (r) {
     var t = tripOf(r.trip_id); var dp = t ? profileById(t.driver_id) : null;
     h += '<div class="card"><div class="flexwrap"><div><b>' + tripLabel(r.trip_id) + '</b> · ' + r.m3 + ' m³</div>' +
