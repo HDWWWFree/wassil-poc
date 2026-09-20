@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>RoutECO — réservation de capacité camion</title>
+<title>ECORoute — réservation de capacité camion</title>
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0b1120" />
 <link rel="apple-touch-icon" href="icon-192.png" />
@@ -131,6 +131,28 @@
   .toast.ok { background: #065f46; }
   @keyframes toastin { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 
+  .chat-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; display: flex; align-items: flex-end; animation: fadein .15s ease; }
+  .chat-sheet { background: var(--card); width: 100%; max-width: 780px; margin: 0 auto; border-radius: 18px 18px 0 0; height: 82vh; display: flex; flex-direction: column; animation: sheetup .22s ease; }
+  @keyframes sheetup { from { transform: translateY(24px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+  .chat-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .chat-header .avatar { margin: 0; }
+  .chat-header .name { font-weight: 700; font-size: 14.5px; flex: 1; }
+  .chat-close { background: var(--bg); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 15px; color: var(--muted); flex-shrink: 0; }
+  .chat-msgs { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .chat-row { display: flex; gap: 6px; align-items: flex-end; }
+  .chat-row.me { justify-content: flex-end; }
+  .chat-bubble { max-width: 75%; }
+  .chat-bubble .txt { border-radius: 14px; padding: 8px 12px; font-size: 13.5px; line-height: 1.4; }
+  .chat-row.me .txt { background: #0f172a; color: #fff; border-bottom-right-radius: 4px; }
+  [data-theme="dark"] .chat-row.me .txt { background: #f1f5f9; color: #0f172a; }
+  .chat-row.other .txt { background: var(--bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .chat-time { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .chat-row.me .chat-time { text-align: right; }
+  .chat-inputbar { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
+  .chat-inputbar input { flex: 1; border-radius: 22px; height: 40px; border: 1px solid var(--fieldborder); padding: 0 16px; font-size: 14px; background: var(--field); color: var(--text); }
+  .chat-send { width: 40px; height: 40px; border-radius: 50%; background: #0f172a; color: #fff; border: none; cursor: pointer; font-size: 17px; flex-shrink: 0; }
+  .chat-icon-btn { background: var(--bg); border: none; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 15px; color: var(--muted); }
+
   .authcard { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
   .authtabs { display: flex; gap: 6px; margin-bottom: 16px; background: var(--border); padding: 4px; border-radius: 10px; }
   .authtabs button { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
@@ -149,7 +171,7 @@
 <div class="toast-wrap" id="toastWrap"></div>
 <header>
   <div class="row">
-    <div class="brand">🚚 RoutECO<span class="tagline">réservation de capacité camion</span></div>
+    <div class="brand">🚚 ECORoute<span class="tagline">réservation de capacité camion</span></div>
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="idbox" id="idbox" style="display:none;"><span class="dot"></span><span id="idboxText">—</span></div>
       <button class="logout-btn" id="logoutBtn" style="display:none;" onclick="doLogout()">Déconnexion</button>
@@ -158,6 +180,7 @@
   </div>
 </header>
 <main id="app"></main>
+<div id="chatOverlay"></div>
 
 <script>
 // ================= config Supabase =================
@@ -179,7 +202,7 @@ var state = {
   editingProfile: false, profileError: "", _chosenRole: null,
   search: "", sortBy: "date", tripsPage: 1, tripsPageSize: 10,
   showNewTrip: false, showNewRequest: false,
-  reserveFor: null, expandedTrip: null, openThread: null, openReqThread: null,
+  reserveFor: null, expandedTrip: null, activeChat: null,
   messages: {},
   tripError: "", reserveError: "", reqError: ""
 };
@@ -428,31 +451,27 @@ function subscribeThread(type, id) {
       var key = threadKey(type, id);
       var arr = state.messages[key] || [];
       if (!arr.find(function (m) { return m.id === payload.new.id; })) arr = arr.concat([payload.new]);
-      state.messages[key] = arr; render();
+      state.messages[key] = arr; renderChatOverlay();
     }).subscribe();
 }
-async function toggleThread(resId) {
-  if (state.openThread === resId) { state.openThread = null; if (threadChannel) { sb.removeChannel(threadChannel); threadChannel = null; } render(); return; }
-  state.openThread = resId; state.openReqThread = null;
-  render();
-  await loadThreadMessages("reservation", resId);
-  subscribeThread("reservation", resId);
-  render();
+async function openChat(type, id, withName) {
+  state.activeChat = { type: type, id: id, withName: withName };
+  renderChatOverlay();
+  await loadThreadMessages(type, id);
+  subscribeThread(type, id);
+  renderChatOverlay();
 }
-async function toggleReqThread(offerId) {
-  if (state.openReqThread === offerId) { state.openReqThread = null; if (threadChannel) { sb.removeChannel(threadChannel); threadChannel = null; } render(); return; }
-  state.openReqThread = offerId; state.openThread = null;
-  render();
-  await loadThreadMessages("offer", offerId);
-  subscribeThread("offer", offerId);
-  render();
+function closeChat() {
+  state.activeChat = null;
+  if (threadChannel) { sb.removeChannel(threadChannel); threadChannel = null; }
+  renderChatOverlay();
 }
-async function sendChatMessage(type, id) {
-  var elId = "chatinput-" + type + "-" + id;
-  var input = document.getElementById(elId); if (!input) return;
+async function sendChatMessage() {
+  var input = document.getElementById("chat-input"); if (!input) return;
   var text = input.value.trim(); if (!text) return;
+  var ac = state.activeChat; if (!ac) return;
   input.value = "";
-  await sb.from("messages").insert({ thread_type: type, thread_id: id, sender_id: myId(), text: text });
+  await sb.from("messages").insert({ thread_type: ac.type, thread_id: ac.id, sender_id: myId(), text: text });
 }
 
 // ================= dérivées =================
@@ -489,17 +508,32 @@ function co2Html(r, t) {
   var kg = Math.round(t.distance_km * 0.9 * (r.m3 / t.capacity));
   return '<div class="co2">🌱 ≈ ' + kg + ' kg de CO₂ économisés en mutualisant ce chargement (estimation illustrative)</div>';
 }
-function chatHtml(type, id) {
-  var msgs = (state.messages[threadKey(type, id)] || []).map(function (m) {
-    var p = profileById(m.sender_id); var name = p ? displayName(p) : "…";
+function renderChatOverlay() {
+  var el = document.getElementById("chatOverlay");
+  var ac = state.activeChat;
+  if (!ac) { el.innerHTML = ""; return; }
+
+  var msgs = (state.messages[threadKey(ac.type, ac.id)] || []).map(function (m) {
+    var mine = m.sender_id === myId();
     var t = new Date(m.created_at); var hh = ("0" + t.getHours()).slice(-2), mm = ("0" + t.getMinutes()).slice(-2);
-    return '<div class="msg"><b>' + esc(name) + '</b> <span class="muted">· ' + hh + ':' + mm + '</span><div>' + esc(m.text) + '</div></div>';
+    return '<div class="chat-row ' + (mine ? "me" : "other") + '"><div class="chat-bubble"><div class="txt">' + esc(m.text) + '</div><div class="chat-time">' + hh + ':' + mm + '</div></div></div>';
   }).join("");
-  if (!msgs) msgs = '<p class="muted">Aucun message.</p>';
-  var elId = "chatinput-" + type + "-" + id;
-  return '<div class="chatbox"><div>' + msgs + '</div><div class="chatinput">' +
-    '<input type="text" id="' + elId + '" placeholder="Écrire un message" onkeydown="if(event.key===\'Enter\')sendChatMessage(\'' + type + '\',\'' + id + '\')" />' +
-    '<button onclick="sendChatMessage(\'' + type + '\',\'' + id + '\')">Envoyer</button></div></div>';
+  if (!msgs) msgs = '<p class="muted" style="text-align:center; margin-top:20px;">Aucun message pour l\'instant.</p>';
+
+  el.innerHTML = '<div class="chat-backdrop" onclick="if(event.target===this)closeChat();">' +
+    '<div class="chat-sheet">' +
+      '<div class="chat-header"><span class="avatar" style="margin:0;">' + esc((ac.withName||"?").slice(0,2).toUpperCase()) + '</span>' +
+        '<span class="name">' + esc(ac.withName || "Chat") + '</span>' +
+        '<button class="chat-close" onclick="closeChat()">✕</button></div>' +
+      '<div class="chat-msgs" id="chat-msgs">' + msgs + '</div>' +
+      '<div class="chat-inputbar">' +
+        '<input type="text" id="chat-input" placeholder="Écrire un message" onkeydown="if(event.key===\'Enter\')sendChatMessage()" />' +
+        '<button class="chat-send" onclick="sendChatMessage()">➤</button>' +
+      '</div>' +
+    '</div></div>';
+
+  var box = document.getElementById("chat-msgs");
+  if (box) box.scrollTop = box.scrollHeight;
 }
 function ratingHint() { return '<p class="muted" style="margin:2px 0 10px;">ℹ️ La notation apparaît une fois la réservation "Livrée".</p>'; }
 function ratingWidget(r) {
@@ -550,7 +584,7 @@ function render() {
   document.getElementById("idboxText").textContent = displayName(state.myProfile) + " · " + (state.myProfile.role === "chauffeur" ? "🚚 Chauffeur" : "📦 Client");
 
   var html = state.myProfile.role === "chauffeur" ? renderChauffeur() : renderClient();
-  html += '<p class="footer-note">© ' + new Date().getFullYear() + ' RoutECO — HD &amp; BS</p>';
+  html += '<p class="footer-note">© ' + new Date().getFullYear() + ' ECORoute — HD &amp; BS</p>';
   document.getElementById("app").innerHTML = html;
 
   if (state.myProfile.role === "chauffeur" && state.showNewTrip) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
@@ -585,7 +619,7 @@ function renderAuth() {
       (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? "Se connecter" : "Créer mon compte") + '</button>' +
     (state.authMode === "login" ? '<button class="btn-outline" style="width:100%; margin-top:10px; text-align:center;" onclick="state.authMode=\'forgot\'; state.authError=\'\'; render();">Mot de passe oublié ?</button>' : '') +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
-    '<p class="muted" style="margin-top:14px; text-align:center;">🚚 RoutECO — marketplace de capacité camion</p>' +
+    '<p class="muted" style="margin-top:14px; text-align:center;">🚚 ECORoute — marketplace de capacité camion</p>' +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
 }
@@ -612,7 +646,7 @@ function renderProfileSetup() {
 
   if (!state._chosenRole) {
     var h0 = '<div class="authwrap"><div class="authcard">' +
-      '<h2 style="margin-top:0;">Comment vas-tu utiliser RoutECO ?</h2>' +
+      '<h2 style="margin-top:0;">Comment vas-tu utiliser ECORoute ?</h2>' +
       '<p class="muted" style="margin-top:-4px;">Ce choix est définitif pour ce compte — crée un second compte avec un autre email si tu veux aussi jouer l\'autre rôle.</p>' +
       '<button class="btn btn-dark" style="width:100%; margin-bottom:10px;" onclick="state._chosenRole=\'client\'; render();">📦 Je suis Client — je réserve du transport</button>' +
       '<button class="btn btn-amber" onclick="state._chosenRole=\'chauffeur\'; render();">🚚 Je suis Chauffeur — je transporte</button>' +
@@ -710,10 +744,9 @@ function renderMyTrips() {
               (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">Valider</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">Refuser</button>' : '') +
               (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">▶ Démarrer le trajet</button>' : '') +
               (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">Marquer livré</button>' : '') +
-              '<button class="btn-outline" onclick="toggleThread(\'' + r.id + '\')">💬 Chat</button></div></div>' +
+              '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + JSON.stringify(displayName(cp)) + ')" title="Chat">💬</button></div></div>' +
           ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
-          progressHtml(r) +
-          (state.openThread === r.id ? chatHtml("reservation", r.id) : '') + '</div>';
+          progressHtml(r) + '</div>';
       });
       h += '</div>';
     }
@@ -739,8 +772,7 @@ function renderClientRequestsForDrivers() {
       '</div>';
     if (myOffer) {
       h += ((myOffer.status === "acceptee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
-        '<div style="margin-top:8px;"><button class="btn-outline" onclick="toggleReqThread(\'' + myOffer.id + '\')">💬 Chat</button></div>' +
-        (state.openReqThread === myOffer.id ? chatHtml("offer", myOffer.id) : '');
+        '<div style="margin-top:8px;"><button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + myOffer.id + '\',' + JSON.stringify(displayName(cp)) + ')" title="Chat">💬</button></div>';
     }
     h += '</div>';
   });
@@ -820,11 +852,10 @@ function renderMyReservationsOnly() {
     h += '<div class="card"><div class="flexwrap"><div><b>' + tripLabel(r.trip_id) + '</b> · ' + r.m3 + ' m³</div>' +
         '<div style="display:flex; gap:6px; align-items:center;">' + badge(r.status) +
           (r.status === "en_attente" ? '<button class="btn-outline" onclick="decide(\'' + r.id + '\',\'annulee\')">Annuler</button>' : '') +
-          '<button class="btn-outline" onclick="toggleThread(\'' + r.id + '\')">💬 Chat</button></div></div>' +
+          '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + JSON.stringify(dp ? displayName(dp) : "Chauffeur") + ')" title="Chat">💬</button></div></div>' +
       ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") && dp ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp.tel) + '</div>' : '') +
       (t ? '<div>' + routeBadgeHtml(t) + '</div>' : '') + progressHtml(r) +
-      (r.status === "terminee" ? co2Html(r, t) + ratingWidget(r) : '') +
-      (state.openThread === r.id ? chatHtml("reservation", r.id) : '') + '</div>';
+      (r.status === "terminee" ? co2Html(r, t) + ratingWidget(r) : '') + '</div>';
   });
   return h;
 }
@@ -862,9 +893,8 @@ function renderMyRequests() {
         h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(displayName(dp)) + '</b> ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + ' · ' + vehicleLabel(o.vehicle_type) + '</div>' +
             '<div style="display:flex; gap:6px; align-items:center;">' + badge(o.status) +
               (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')">Accepter</button>' : '') +
-              '<button class="btn-outline" onclick="toggleReqThread(\'' + o.id + '\')">💬 Chat</button></div></div>' +
-          (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp ? dp.tel : "") + '</div>' : '') +
-          (state.openReqThread === o.id ? chatHtml("offer", o.id) : '') + '</div>';
+              '<button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + o.id + '\',' + JSON.stringify(displayName(dp)) + ')" title="Chat">💬</button></div></div>' +
+          (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp ? dp.tel : "") + '</div>' : '') + '</div>';
       });
       h += '</div>';
     }
