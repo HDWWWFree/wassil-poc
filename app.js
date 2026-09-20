@@ -6,12 +6,14 @@ function jsStr(s) { return "'" + String(s == null ? "" : s).replace(/\\/g, "\\\\
 
 // ================= état =================
 var state = {
+  lang: getStoredLang(),
   session: null, myProfile: null, myDriverProfile: null, profilesById: {},
   trips: [], reservations: [], requests: [], offers: [],
   clientSubTab: "browse", chauffeurSubTab: "mytrips",
   authMode: "login", authError: "", authBusy: false,
   editingProfile: false, profileError: "", _chosenRole: null,
-  search: "", sortBy: "date", tripsPage: 1, tripsPageSize: 10, resPage: 1, resPageSize: 10, expandedRes: null,
+  search: "", sortBy: "date", tripsPage: 1, tripsPageSize: 5, resPage: 1, resPageSize: 5, expandedRes: null,
+  reqPage: 1, reqPageSize: 5, myReqPage: 1, myReqPageSize: 5,
   showNewTrip: false, showNewRequest: false,
   reserveFor: null, expandedTrip: null, activeChat: null,
   messages: {}, messageMeta: [],
@@ -327,7 +329,7 @@ function tierBadge(delivered) {
 }
 function starsDisplay(avg, count) { if (!avg) return '<span class="muted">Pas encore d\'avis</span>'; return '<span style="color:#e0a100;">★</span> ' + avg.toFixed(1) + ' <span class="muted">(' + count + ' avis)</span>'; }
 function badge(status) {
-  var map = { en_attente: ["En attente", "badge-wait"], validee: ["Validée", "badge-ok"], en_route: ["En route", "badge-route"], refusee: ["Refusée", "badge-no"], terminee: ["Livrée", "badge-done"], annulee: ["Annulée", "badge-cancel"], ouverte: ["Ouverte", "badge-wait"], prise_en_charge: ["Prise en charge", "badge-ok"], proposee: ["Proposée", "badge-wait"], acceptee: ["Acceptée", "badge-ok"] };
+  var map = { en_attente: [tr("status_waiting"), "badge-wait"], validee: [tr("status_validated"), "badge-ok"], en_route: [tr("status_enroute"), "badge-route"], refusee: [tr("status_refused"), "badge-no"], terminee: [tr("status_delivered"), "badge-done"], annulee: [tr("status_cancelled"), "badge-cancel"], ouverte: [tr("status_open"), "badge-wait"], prise_en_charge: [tr("status_taken"), "badge-ok"], proposee: [tr("status_proposed"), "badge-wait"], acceptee: [tr("status_accepted"), "badge-ok"] };
   var v = map[status] || [status, "badge-cancel"];
   return '<span class="badge ' + v[1] + '">' + v[0] + '</span>';
 }
@@ -430,12 +432,12 @@ function renderAuth() {
   document.getElementById("logoutBtn").style.display = "none";
   if (state.authMode === "forgot") {
     var hf = '<div class="authwrap"><div class="authcard">' +
-      '<h2 style="margin-top:0;">Mot de passe oublié</h2>' +
-      '<p class="muted" style="margin-top:-4px;">Entre ton email, tu recevras un lien pour en choisir un nouveau.</p>' +
-      '<input class="field" id="auth-email" type="email" placeholder="Email" autocomplete="username" />' +
+      '<h2 style="margin-top:0;">' + tr("forgot_title") + '</h2>' +
+      '<p class="muted" style="margin-top:-4px;">' + tr("forgot_desc") + '</p>' +
+      '<input class="field" id="auth-email" type="email" placeholder="' + tr("email") + '" autocomplete="username" />' +
       '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="doForgotPassword()">' +
-        (state.authBusy ? '<span class="spinner"></span>' : "") + 'Envoyer le lien' + '</button>' +
-      '<button class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">← Retour à la connexion</button>' +
+        (state.authBusy ? '<span class="spinner"></span>' : "") + tr("forgot_send") + '</button>' +
+      '<button class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">' + tr("back_to_login") + '</button>' +
       (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
     '</div></div>';
     document.getElementById("app").innerHTML = hf;
@@ -443,17 +445,17 @@ function renderAuth() {
   }
   var h = '<div class="authwrap"><div class="authcard">' +
     '<div class="authtabs">' +
-      '<button class="' + (state.authMode === "login" ? "active" : "") + '" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">Connexion</button>' +
-      '<button class="' + (state.authMode === "signup" ? "active" : "") + '" onclick="state.authMode=\'signup\'; state.authError=\'\'; render();">Créer un compte</button>' +
+      '<button class="' + (state.authMode === "login" ? "active" : "") + '" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">' + tr("login_tab") + '</button>' +
+      '<button class="' + (state.authMode === "signup" ? "active" : "") + '" onclick="state.authMode=\'signup\'; state.authError=\'\'; render();">' + tr("signup_tab") + '</button>' +
     '</div>' +
-    '<input class="field" id="auth-email" type="email" placeholder="Email" autocomplete="username" />' +
-    '<div class="pwd-wrap"><input class="field" id="auth-pass" type="password" placeholder="Mot de passe" autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
+    '<input class="field" id="auth-email" type="email" placeholder="' + tr("email") + '" autocomplete="username" />' +
+    '<div class="pwd-wrap"><input class="field" id="auth-pass" type="password" placeholder="' + tr("password") + '" autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
       '<button type="button" class="pwd-toggle" onclick="togglePwd(\'auth-pass\', this)">👁️</button></div>' +
     '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="' + (state.authMode === "login" ? "doLogin()" : "doSignup()") + '">' +
-      (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? "Se connecter" : "Créer mon compte") + '</button>' +
-    (state.authMode === "login" ? '<button class="btn-outline" style="width:100%; margin-top:10px; text-align:center;" onclick="state.authMode=\'forgot\'; state.authError=\'\'; render();">Mot de passe oublié ?</button>' : '') +
+      (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? tr("login_btn") : tr("signup_btn")) + '</button>' +
+    (state.authMode === "login" ? '<button class="btn-outline" style="width:100%; margin-top:10px; text-align:center;" onclick="state.authMode=\'forgot\'; state.authError=\'\'; render();">' + tr("forgot_link") + '</button>' : '') +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
-    '<p class="muted" style="margin-top:14px; text-align:center;"><img src="icon-192.png?v=2" alt="" style="width:20px;height:20px;border-radius:5px;vertical-align:-5px;" /> ECORoute — marketplace de capacité camion</p>' +
+    '<p class="muted" style="margin-top:14px; text-align:center;"><img src="icons/icon-192.png" alt="" style="width:20px;height:20px;border-radius:5px;vertical-align:-5px;" /> ECORoute — ' + tr("tagline") + '</p>' +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
 }
@@ -462,13 +464,13 @@ function renderResetPassword() {
   document.getElementById("idbox").style.display = "none";
   document.getElementById("logoutBtn").style.display = "none";
   var h = '<div class="authwrap"><div class="authcard">' +
-    '<h2 style="margin-top:0;">Choisis un nouveau mot de passe</h2>' +
-    '<div class="pwd-wrap"><input class="field" id="reset-pass" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" />' +
+    '<h2 style="margin-top:0;">' + tr("reset_title") + '</h2>' +
+    '<div class="pwd-wrap"><input class="field" id="reset-pass" type="password" placeholder="' + tr("reset_new") + '" autocomplete="new-password" />' +
       '<button type="button" class="pwd-toggle" onclick="togglePwd(\'reset-pass\', this)">👁️</button></div>' +
-    '<div class="pwd-wrap"><input class="field" id="reset-pass2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password" />' +
+    '<div class="pwd-wrap"><input class="field" id="reset-pass2" type="password" placeholder="' + tr("reset_confirm") + '" autocomplete="new-password" />' +
       '<button type="button" class="pwd-toggle" onclick="togglePwd(\'reset-pass2\', this)">👁️</button></div>' +
     '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="doUpdatePassword()">' +
-      (state.authBusy ? '<span class="spinner"></span>' : "") + 'Mettre à jour' + '</button>' +
+      (state.authBusy ? '<span class="spinner"></span>' : "") + tr("reset_update") + '</button>' +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
@@ -480,10 +482,10 @@ function renderProfileSetup() {
 
   if (!state._chosenRole) {
     var h0 = '<div class="authwrap"><div class="authcard">' +
-      '<h2 style="margin-top:0;">Comment vas-tu utiliser ECORoute ?</h2>' +
-      '<p class="muted" style="margin-top:-4px;">Ce choix est définitif pour ce compte — crée un second compte avec un autre email si tu veux aussi jouer l\'autre rôle.</p>' +
-      '<button class="btn btn-dark" style="width:100%; margin-bottom:10px;" onclick="state._chosenRole=\'client\'; render();">📦 Je suis Client — je réserve du transport</button>' +
-      '<button class="btn btn-amber" onclick="state._chosenRole=\'chauffeur\'; render();">🚚 Je suis Chauffeur — je transporte</button>' +
+      '<h2 style="margin-top:0;">' + tr("role_question") + '</h2>' +
+      '<p class="muted" style="margin-top:-4px;">' + tr("role_warning") + '</p>' +
+      '<button class="btn btn-dark" style="width:100%; margin-bottom:10px;" onclick="state._chosenRole=\'client\'; render();">' + tr("role_client") + '</button>' +
+      '<button class="btn btn-amber" onclick="state._chosenRole=\'chauffeur\'; render();">' + tr("role_driver") + '</button>' +
     '</div></div>';
     document.getElementById("app").innerHTML = h0;
     return;
@@ -491,18 +493,18 @@ function renderProfileSetup() {
 
   var isDriver = state._chosenRole === "chauffeur";
   var h = '<div class="authwrap"><div class="authcard">' +
-    '<h2 style="margin-top:0;">' + (isDriver ? "🚚 Profil chauffeur" : "📦 Profil client") + '</h2>' +
-    '<input class="field" id="p-prenom" placeholder="Prénom" />' +
-    '<input class="field" id="p-nom" placeholder="Nom" />' +
-    '<input class="field" id="p-tel" placeholder="Téléphone" />' +
+    '<h2 style="margin-top:0;">' + (isDriver ? tr("profile_driver_title") : tr("profile_client_title")) + '</h2>' +
+    '<input class="field" id="p-prenom" placeholder="' + tr("ph_prenom") + '" />' +
+    '<input class="field" id="p-nom" placeholder="' + tr("ph_nom") + '" />' +
+    '<input class="field" id="p-tel" placeholder="' + tr("ph_tel") + '" />' +
     (isDriver ?
-      '<input class="field" id="d-license" placeholder="N° de permis de conduire" />' +
-      '<input class="field" id="d-plate" placeholder="Plaque d\'immatriculation" />' +
+      '<input class="field" id="d-license" placeholder="' + tr("ph_license") + '" />' +
+      '<input class="field" id="d-plate" placeholder="' + tr("ph_plate") + '" />' +
       '<select class="field" id="d-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select>'
     : '') +
-    '<label class="muted" style="display:flex; align-items:center; gap:6px; margin-bottom:12px;"><input type="checkbox" id="p-verified" /> Je certifie mon identité (simulation de vérification)</label>' +
-    '<button class="btn btn-outline" style="margin-bottom:10px;" onclick="state._chosenRole=null; render();">← Changer de rôle</button>' +
-    '<button class="btn btn-amber" onclick="saveProfileToDb()">Continuer</button>' +
+    '<label class="muted" style="display:flex; align-items:center; gap:6px; margin-bottom:12px;"><input type="checkbox" id="p-verified" /> ' + tr("verify_check") + '</label>' +
+    '<button class="btn btn-outline" style="margin-bottom:10px;" onclick="state._chosenRole=null; render();">' + tr("change_role") + '</button>' +
+    '<button class="btn btn-amber" onclick="saveProfileToDb()">' + tr("continue_btn") + '</button>' +
     (state.profileError ? '<div class="error">' + esc(state.profileError) + '</div>' : '') +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
@@ -513,13 +515,13 @@ function driverOnboardingHtml() { return ""; }
 function subtabsHtml(which) {
   if (which === "chauffeur") {
     return '<div class="subtabs">' +
-      '<button class="' + (state.chauffeurSubTab === "mytrips" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'mytrips\'; render();">🚚 Mes trajets</button>' +
-      '<button class="' + (state.chauffeurSubTab === "clientrequests" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'clientrequests\'; render();">📋 Demandes clients</button></div>';
+      '<button class="' + (state.chauffeurSubTab === "mytrips" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'mytrips\'; render();">' + tr("tab_mytrips") + '</button>' +
+      '<button class="' + (state.chauffeurSubTab === "clientrequests" ? "active" : "") + '" onclick="state.chauffeurSubTab=\'clientrequests\'; render();">' + tr("tab_clientrequests") + '</button></div>';
   }
   return '<div class="subtabs">' +
-    '<button class="' + (state.clientSubTab === "browse" ? "active" : "") + '" onclick="state.clientSubTab=\'browse\'; render();">🔍 Trajets</button>' +
-    '<button class="' + (state.clientSubTab === "reservations" ? "active" : "") + '" onclick="state.clientSubTab=\'reservations\'; render();">📄 Réservations</button>' +
-    '<button class="' + (state.clientSubTab === "requests" ? "active" : "") + '" onclick="state.clientSubTab=\'requests\'; render();">📢 Demandes</button></div>';
+    '<button class="' + (state.clientSubTab === "browse" ? "active" : "") + '" onclick="state.clientSubTab=\'browse\'; render();">' + tr("tab_trips") + '</button>' +
+    '<button class="' + (state.clientSubTab === "reservations" ? "active" : "") + '" onclick="state.clientSubTab=\'reservations\'; render();">' + tr("tab_reservations") + '</button>' +
+    '<button class="' + (state.clientSubTab === "requests" ? "active" : "") + '" onclick="state.clientSubTab=\'requests\'; render();">' + tr("tab_requests") + '</button></div>';
 }
 
 function renderChauffeur() {
@@ -536,50 +538,50 @@ function renderMyTrips() {
   var stats = driverStats(name);
 
   var h = '<div class="stats">' +
-    '<div class="stat"><div class="num">' + myTrips.length + '</div><div class="lbl">Trajets publiés</div></div>' +
-    '<div class="stat"><div class="num">' + m3Valides + ' m³</div><div class="lbl">Chargement validé</div></div>' +
+    '<div class="stat"><div class="num">' + myTrips.length + '</div><div class="lbl">' + tr("my_trips") + '</div></div>' +
+    '<div class="stat"><div class="num">' + m3Valides + ' m³</div><div class="lbl">' + tr("m3_available").replace("dispo", "validé") + '</div></div>' +
     '<div class="stat"><div class="num">' + (stats.avg ? stats.avg.toFixed(1) + ' ★' : "—") + '</div><div class="lbl">' + (stats.count ? stats.count + ' avis' : "aucun avis") + '</div></div></div>';
   if (stats.delivered > 0) h += '<div style="margin:-4px 0 14px;">' + stats.delivered + ' livraisons effectuées ' + tierBadge(stats.delivered) + '</div>';
 
-  h += '<div class="toprow"><h2 style="margin:0;">Mes trajets</h2><button class="btn btn-dark" onclick="toggleNewTrip()">+ Publier une dispo</button></div>';
+  h += '<div class="toprow"><h2 style="margin:0;">' + tr("my_trips") + '</h2><button class="btn btn-dark" onclick="toggleNewTrip()">' + tr("publish_trip") + '</button></div>';
 
   if (state.showNewTrip) {
     h += '<div class="card">' +
       '<div class="addr-wrap"><div class="addr-row">' +
-        '<input class="field" id="f-origin" placeholder="Départ" value="' + esc(state._origin||"") + '" oninput="onAddressInput(\'f-origin\')" onblur="hideSuggestionsLater(\'f-origin\')" autocomplete="off" />' +
+        '<input class="field" id="f-origin" placeholder="' + tr("ph_origin") + '" value="' + esc(state._origin||"") + '" oninput="onAddressInput(\'f-origin\')" onblur="hideSuggestionsLater(\'f-origin\')" autocomplete="off" />' +
         '<button type="button" class="geo-btn" title="Utiliser ma position" onclick="useMyLocation(\'f-origin\', this)">📍</button></div>' +
       '<div class="suggestions" id="sugg-f-origin"></div></div>' +
-      '<div class="addr-wrap"><input class="field" id="f-dest" placeholder="Arrivée" value="' + esc(state._dest||"") + '" oninput="onAddressInput(\'f-dest\')" onblur="hideSuggestionsLater(\'f-dest\')" autocomplete="off" />' +
+      '<div class="addr-wrap"><input class="field" id="f-dest" placeholder="' + tr("ph_dest") + '" value="' + esc(state._dest||"") + '" oninput="onAddressInput(\'f-dest\')" onblur="hideSuggestionsLater(\'f-dest\')" autocomplete="off" />' +
         '<div class="suggestions" id="sugg-f-dest"></div></div>' +
       '<div id="route-map"></div><div id="route-info" class="muted"></div>' +
       '<div class="grid2">' +
         '<input class="field" id="f-date" type="date" value="' + esc(state._date||"") + '" />' +
         '<select class="field" id="f-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '"' + (state._vehicle === k ? " selected" : "") + '>' + VEHICLES[k] + '</option>'; }).join("") + '</select>' +
       '</div>' +
-      '<input class="field" id="f-cap" type="number" min="0" placeholder="Capacité (m³)" value="' + esc(state._cap||"") + '" />' +
-      '<input class="field" id="f-price" type="number" min="0" placeholder="Prix / m³ (optionnel)" value="' + esc(state._price||"") + '" />' +
-      '<button class="btn btn-amber" onclick="publishTrip()">Publier</button>' +
+      '<input class="field" id="f-cap" type="number" min="0" placeholder="' + tr("ph_capacity") + '" value="' + esc(state._cap||"") + '" />' +
+      '<input class="field" id="f-price" type="number" min="0" placeholder="' + tr("ph_price") + '" value="' + esc(state._price||"") + '" />' +
+      '<button class="btn btn-amber" onclick="publishTrip()">' + tr("publish_btn") + '</button>' +
       (state.tripError ? '<div class="error">' + esc(state.tripError) + '</div>' : '') + '</div>';
   }
 
-  if (myTrips.length === 0) h += '<p class="muted">Aucun trajet publié pour l\'instant.</p>';
+  if (myTrips.length === 0) h += '<p class="muted">' + tr("no_trips") + '</p>';
   myTrips.forEach(function (t) {
     var tripRes = state.reservations.filter(function (r) { return r.trip_id === t.id; });
     h += '<div class="card"><div class="flexwrap">' +
         '<div><b>' + esc(t.origin) + ' → ' + esc(t.destination) + '</b> <span class="muted">· ' + esc(t.date) + ' · ' + vehicleLabel(t.vehicle_type) + '</span><div>' + routeBadgeHtml(t) + '</div></div>' +
-        '<div class="muted">' + t.remaining + ' / ' + t.capacity + ' m³ dispo' + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
+        '<div class="muted">' + t.remaining + ' / ' + t.capacity + ' ' + tr("m3_available") + (t.price ? ' · ' + t.price + '/m³' : '') + '</div></div>';
     if (tripRes.length > 0) {
       h += '<div class="reslist">';
       tripRes.forEach(function (r) {
         var cp = profileById(r.client_id);
         h += '<div class="resitem"><div class="flexwrap">' +
-            '<div><b>' + esc(displayName(cp)) + '</b> ' + verifiedTag(cp) + ' demande ' + r.m3 + ' m³</div>' +
+            '<div><b>' + esc(displayName(cp)) + '</b> ' + verifiedTag(cp) + ' — ' + r.m3 + ' ' + tr("m3_wanted") + '</div>' +
             '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">' + badge(r.status) +
-              (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">Valider</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">Refuser</button>' : '') +
-              (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">▶ Démarrer le trajet</button>' : '') +
-              (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">Marquer livré</button>' : '') +
+              (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">' + tr("validate_btn") + '</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">' + tr("refuse_btn") + '</button>' : '') +
+              (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">' + tr("start_trip") + '</button>' : '') +
+              (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">' + tr("mark_delivered") + '</button>' : '') +
               chatBtnHtml("reservation", r.id, displayName(cp)) + '</div></div>' +
-          ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
+          ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 ' + esc(cp ? cp.tel : "") + '</div>' : '') +
           progressHtml(r) + '</div>';
       });
       h += '</div>';
@@ -594,7 +596,12 @@ function renderClientRequestsForDrivers() {
   var open = state.requests.filter(function (r) { return r.status === "ouverte"; });
   var h = '<h2>Demandes de trajet postées par des clients</h2>';
   if (open.length === 0) h += '<p class="muted">Aucune demande ouverte pour l\'instant.</p>';
-  open.forEach(function (rq) {
+
+  var totalPages = Math.max(1, Math.ceil(open.length / state.reqPageSize));
+  if (state.reqPage > totalPages) state.reqPage = totalPages;
+  var pageItems = open.slice((state.reqPage - 1) * state.reqPageSize, state.reqPage * state.reqPageSize);
+
+  pageItems.forEach(function (rq) {
     var cp = profileById(rq.client_id);
     var myOffer = state.offers.find(function (o) { return o.request_id === rq.id && o.driver_id === name; });
     h += '<div class="card"><div class="flexwrap"><div>' +
@@ -610,6 +617,14 @@ function renderClientRequestsForDrivers() {
     }
     h += '</div>';
   });
+
+  if (open.length > state.reqPageSize) {
+    h += '<div class="pager">' +
+      '<button ' + (state.reqPage <= 1 ? "disabled" : "") + ' onclick="state.reqPage--; render();">‹</button>' +
+      '<span class="muted">' + tr("page_of").replace("{n}", state.reqPage).replace("{total}", totalPages) + '</span>' +
+      '<button ' + (state.reqPage >= totalPages ? "disabled" : "") + ' onclick="state.reqPage++; render();">›</button>' +
+    '</div>';
+  }
   return h;
 }
 
@@ -621,12 +636,12 @@ function renderClient() {
 }
 
 function renderBrowseTrips() {
-  var h = '<input class="field" id="searchInput" placeholder="Rechercher un trajet (ville de départ ou d\'arrivée)" value="' + esc(state.search) + '" oninput="state.search=this.value; state.tripsPage=1; render(); var el=document.getElementById(\'searchInput\'); el.focus(); el.selectionStart=el.value.length;" />';
-  h += '<div class="toprow"><h2 style="margin:0;">Trajets disponibles</h2>' +
+  var h = '<input class="field" id="searchInput" placeholder="' + tr("search_ph") + '" value="' + esc(state.search) + '" oninput="state.search=this.value; state.tripsPage=1; render(); var el=document.getElementById(\'searchInput\'); el.focus(); el.selectionStart=el.value.length;" />';
+  h += '<div class="toprow"><h2 style="margin:0;">' + tr("trips_available") + '</h2>' +
     '<select class="field" style="width:auto; margin:0;" onchange="state.sortBy=this.value; state.tripsPage=1; render();">' +
-      '<option value="date"' + (state.sortBy === "date" ? " selected" : "") + '>Trier : date</option>' +
-      '<option value="prix"' + (state.sortBy === "prix" ? " selected" : "") + '>Trier : prix</option>' +
-      '<option value="capacite"' + (state.sortBy === "capacite" ? " selected" : "") + '>Trier : capacité dispo</option></select></div>';
+      '<option value="date"' + (state.sortBy === "date" ? " selected" : "") + '>' + tr("sort_date") + '</option>' +
+      '<option value="prix"' + (state.sortBy === "prix" ? " selected" : "") + '>' + tr("sort_price") + '</option>' +
+      '<option value="capacite"' + (state.sortBy === "capacite" ? " selected" : "") + '>' + tr("sort_capacity") + '</option></select></div>';
 
   var available = state.trips.filter(function (t) { return t.remaining > 0; }).filter(function (t) { if (!state.search.trim()) return true; return (t.origin + t.destination).toLowerCase().indexOf(state.search.trim().toLowerCase()) !== -1; });
   available = available.slice().sort(function (a, b) { if (state.sortBy === "prix") return (a.price||0) - (b.price||0); if (state.sortBy === "capacite") return b.remaining - a.remaining; return new Date(a.date) - new Date(b.date); });
@@ -635,19 +650,19 @@ function renderBrowseTrips() {
   if (state.tripsPage > totalPages) state.tripsPage = totalPages;
   var pageItems = available.slice((state.tripsPage - 1) * state.tripsPageSize, state.tripsPage * state.tripsPageSize);
 
-  if (available.length === 0) h += '<p class="muted">Aucun trajet disponible pour le moment.</p>';
+  if (available.length === 0) h += '<p class="muted">' + tr("no_trips") + '</p>';
   pageItems.forEach(function (t) {
     var dp = profileById(t.driver_id);
     var stats = driverStats(t.driver_id);
     var isOpen = state.expandedTrip === t.id;
     h += '<div class="card trip-row" style="' + (isOpen ? 'border-color:var(--brand);' : '') + '" onclick="toggleTripExpand(\'' + t.id + '\')">' +
       '<div class="trip-row-line1"><span class="trip-row-route">' + esc(t.origin) + ' → ' + esc(t.destination) + '</span>' +
-        (t.price ? '<span class="trip-row-price">' + t.price + '/m³</span>' : '<span class="trip-row-price muted">prix à discuter</span>') + '</div>' +
+        (t.price ? '<span class="trip-row-price">' + t.price + '/m³</span>' : '<span class="trip-row-price muted">—</span>') + '</div>' +
       '<div class="trip-row-line2"><div class="trip-row-line2-left">' +
         '<span class="avatar-sm">' + profileInitials(dp) + '</span>' +
         '<span>' + esc(t.date) + '</span>' +
         (stats.avg ? '<span>★ ' + stats.avg.toFixed(1) + '</span>' : '') +
-      '</div><span class="muted">' + t.remaining + ' m³ dispo</span></div>';
+      '</div><span class="muted">' + t.remaining + ' ' + tr("m3_available") + '</span></div>';
     if (isOpen) {
       h += '<div class="trip-details" onclick="event.stopPropagation();">' +
         '<div class="flexwrap" style="margin-bottom:8px;">' +
@@ -656,11 +671,11 @@ function renderBrowseTrips() {
         '</div>' +
         (t.distance_km ? '<div style="margin-bottom:8px;">' + routeBadgeHtml(t) + '</div>' : '') +
         (state.reserveFor === t.id ?
-          '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="m³ souhaités" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
+          '<input class="field" style="width:140px; display:inline-block;" id="f-m3" type="number" min="1" max="' + t.remaining + '" placeholder="' + tr("m3_wanted") + '" value="' + esc(state._reserveM3||"") + '" oninput="updateEstimate(this,' + (t.price||0) + ')" />' +
           ' <span class="muted" id="estimate-txt"></span><br/>' +
-          '<button class="btn btn-amber" style="width:auto;" onclick="submitReservation(\'' + t.id + '\')">Envoyer la demande</button>' +
+          '<button class="btn btn-amber" style="width:auto;" onclick="submitReservation(\'' + t.id + '\')">' + tr("send_request") + '</button>' +
           (state.reserveError ? '<div class="error">' + esc(state.reserveError) + '</div>' : '')
-        : '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">Réserver</button>') +
+        : '<button class="btn btn-dark" onclick="toggleReserve(\'' + t.id + '\')">' + tr("reserve_btn") + '</button>') +
       '</div>';
     }
     h += '</div>';
@@ -669,7 +684,7 @@ function renderBrowseTrips() {
   if (available.length > state.tripsPageSize) {
     h += '<div class="pager">' +
       '<button ' + (state.tripsPage <= 1 ? "disabled" : "") + ' onclick="state.tripsPage--; render();">‹</button>' +
-      '<span class="muted">Page ' + state.tripsPage + ' sur ' + totalPages + '</span>' +
+      '<span class="muted">' + tr("page_of").replace("{n}", state.tripsPage).replace("{total}", totalPages) + '</span>' +
       '<button ' + (state.tripsPage >= totalPages ? "disabled" : "") + ' onclick="state.tripsPage++; render();">›</button>' +
     '</div>';
   }
@@ -714,7 +729,7 @@ function renderMyReservationsOnly() {
   if (myRes.length > state.resPageSize) {
     h += '<div class="pager">' +
       '<button ' + (state.resPage <= 1 ? "disabled" : "") + ' onclick="state.resPage--; render();">‹</button>' +
-      '<span class="muted">Page ' + state.resPage + ' sur ' + totalPages + '</span>' +
+      '<span class="muted">' + tr("page_of").replace("{n}", state.resPage).replace("{total}", totalPages) + '</span>' +
       '<button ' + (state.resPage >= totalPages ? "disabled" : "") + ' onclick="state.resPage++; render();">›</button>' +
     '</div>';
   }
@@ -743,7 +758,12 @@ function renderMyRequests() {
 
   var myReq = state.requests.filter(function (r) { return r.client_id === name; });
   if (myReq.length === 0) h += '<p class="muted">Aucune demande postée pour l\'instant. Publie une demande pour que des chauffeurs disponibles te contactent directement.</p>';
-  myReq.forEach(function (rq) {
+
+  var totalPages = Math.max(1, Math.ceil(myReq.length / state.myReqPageSize));
+  if (state.myReqPage > totalPages) state.myReqPage = totalPages;
+  var pageItems = myReq.slice((state.myReqPage - 1) * state.myReqPageSize, state.myReqPage * state.myReqPageSize);
+
+  pageItems.forEach(function (rq) {
     h += '<div class="card"><div class="flexwrap"><div><b>' + esc(rq.origin) + ' → ' + esc(rq.destination) + '</b> <span class="muted">· ' + esc(rq.date) + ' · ' + rq.m3_needed + ' m³</span><div>' + routeBadgeHtml(rq) + '</div></div>' + badge(rq.status) + '</div>';
     var myOffers = state.offers.filter(function (o) { return o.request_id === rq.id; });
     if (myOffers.length === 0) h += '<p class="muted" style="margin-top:8px;">Aucune proposition de chauffeur pour l\'instant.</p>';
@@ -761,6 +781,14 @@ function renderMyRequests() {
     }
     h += '</div>';
   });
+
+  if (myReq.length > state.myReqPageSize) {
+    h += '<div class="pager">' +
+      '<button ' + (state.myReqPage <= 1 ? "disabled" : "") + ' onclick="state.myReqPage--; render();">‹</button>' +
+      '<span class="muted">' + tr("page_of").replace("{n}", state.myReqPage).replace("{total}", totalPages) + '</span>' +
+      '<button ' + (state.myReqPage >= totalPages ? "disabled" : "") + ' onclick="state.myReqPage++; render();">›</button>' +
+    '</div>';
+  }
   return h;
 }
 
@@ -869,6 +897,9 @@ async function acceptOffer(reqId, offerId) {
 }
 
 // ================= init =================
+document.documentElement.setAttribute("lang", state.lang);
+document.documentElement.setAttribute("dir", state.lang === "ar" ? "rtl" : "ltr");
+document.getElementById("langSelect").value = state.lang;
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
 }
