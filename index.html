@@ -21,7 +21,7 @@
     --header1: #05070d; --header2: #0e1524; --field: #26221d; --fieldborder: #3a352d;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 74px; transition: background .2s, color .2s; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); transition: background .2s, color .2s; }
   a { color: inherit; }
   header { background: linear-gradient(135deg, var(--header1), var(--header2)); color: #f1f5f9; padding: 16px 18px 14px; position: sticky; top: 0; z-index: 40; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
   header .row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; max-width: 780px; margin: 0 auto; }
@@ -143,11 +143,6 @@
 </header>
 <main id="app"></main>
 
-<nav class="bottomnav" id="bottomnav" style="display:none;">
-  <button id="tabClient" class="active"><span class="ic">📦</span>Client</button>
-  <button id="tabChauffeur"><span class="ic">🚚</span>Chauffeur</button>
-</nav>
-
 <script>
 // ================= config Supabase =================
 var SUPABASE_URL = "https://vktuwoyikseadvfzgacd.supabase.co";
@@ -163,10 +158,9 @@ function esc(s) { var d = document.createElement("div"); d.textContent = s == nu
 var state = {
   session: null, myProfile: null, myDriverProfile: null, profilesById: {},
   trips: [], reservations: [], requests: [], offers: [],
-  role: "client", clientSubTab: "browse", chauffeurSubTab: "mytrips",
+  clientSubTab: "browse", chauffeurSubTab: "mytrips",
   authMode: "login", authError: "", authBusy: false,
-  editingProfile: false, profileError: "",
-  showDriverOnboarding: false, driverError: "",
+  editingProfile: false, profileError: "", _chosenRole: null,
   search: "", sortBy: "date",
   showNewTrip: false, showNewRequest: false,
   reserveFor: null, openThread: null, openReqThread: null,
@@ -317,29 +311,29 @@ async function loadMyDriverProfile() {
   var { data } = await sb.from("driver_profiles").select("*").eq("id", myId()).maybeSingle();
   state.myDriverProfile = data || null;
 }
-async function saveDriverProfile() {
-  var license = document.getElementById("d-license").value.trim();
-  var plate = document.getElementById("d-plate").value.trim();
-  var vehicle = document.getElementById("d-vehicle").value;
-  if (!license || !plate) { state.driverError = "N° de permis et plaque d'immatriculation sont obligatoires."; render(); return; }
-  var row = { id: myId(), license_number: license, plate: plate, vehicle_type: vehicle };
-  var { error } = await sb.from("driver_profiles").upsert(row);
-  if (error) { state.driverError = error.message; render(); return; }
-  await sb.from("profiles").update({ driver_verified: true }).eq("id", myId());
-  state.myDriverProfile = row; state.myProfile.driver_verified = true;
-  state.showDriverOnboarding = false; state.driverError = "";
-  await loadAllData(); render(); showToast("Profil chauffeur complété ✅", "ok");
-}
+async function saveDriverProfile() {}
 function driverVerifiedTag(p) { return p && p.driver_verified ? '<span class="verified">🚚 Chauffeur vérifié</span>' : ""; }
 async function saveProfileToDb() {
   var prenom = document.getElementById("p-prenom").value.trim();
   var nom = document.getElementById("p-nom").value.trim();
   var tel = document.getElementById("p-tel").value.trim();
   var verified = document.getElementById("p-verified").checked;
+  var isDriver = state._chosenRole === "chauffeur";
   if (!prenom || !nom || !tel) { state.profileError = "Prénom, nom et téléphone sont obligatoires."; render(); return; }
-  var row = { id: myId(), prenom: prenom, nom: nom, tel: tel, verified: verified };
+  var license, plate, vehicle;
+  if (isDriver) {
+    license = document.getElementById("d-license").value.trim();
+    plate = document.getElementById("d-plate").value.trim();
+    vehicle = document.getElementById("d-vehicle").value;
+    if (!license || !plate) { state.profileError = "N° de permis et plaque d'immatriculation sont obligatoires pour un compte chauffeur."; render(); return; }
+  }
+  var row = { id: myId(), prenom: prenom, nom: nom, tel: tel, verified: verified, role: state._chosenRole, driver_verified: isDriver };
   var { error } = await sb.from("profiles").upsert(row);
   if (error) { state.profileError = error.message; render(); return; }
+  if (isDriver) {
+    var { error: derr } = await sb.from("driver_profiles").upsert({ id: myId(), license_number: license, plate: plate, vehicle_type: vehicle });
+    if (derr) { state.profileError = derr.message; render(); return; }
+  }
   state.myProfile = row; state.editingProfile = false; state.profileError = "";
   await loadMyDriverProfile(); await loadAllData(); subscribeRealtime();
   render(); showToast("Profil enregistré", "ok");
@@ -503,28 +497,19 @@ function render() {
 
   document.getElementById("idbox").style.display = "flex";
   document.getElementById("logoutBtn").style.display = "inline-block";
-  document.getElementById("bottomnav").style.display = "flex";
-  document.getElementById("idboxText").textContent = displayName(state.myProfile);
+  document.getElementById("idboxText").textContent = displayName(state.myProfile) + " · " + (state.myProfile.role === "chauffeur" ? "🚚 Chauffeur" : "📦 Client");
 
-  document.getElementById("tabClient").className = state.role === "client" ? "active" : "";
-  document.getElementById("tabChauffeur").className = state.role === "chauffeur" ? "active" : "";
-  var pendingForChauffeur = state.reservations.filter(function (r) { var t = tripOf(r.trip_id); return t && t.driver_id === myId() && r.status === "en_attente"; }).length;
-  var activeForClient = state.reservations.filter(function (r) { return r.client_id === myId() && (r.status === "validee" || r.status === "en_route"); }).length;
-  document.getElementById("tabChauffeur").innerHTML = '<span class="ic">🚚</span>Chauffeur' + (pendingForChauffeur ? '<span class="dot">' + pendingForChauffeur + '</span>' : "");
-  document.getElementById("tabClient").innerHTML = '<span class="ic">📦</span>Client' + (activeForClient ? '<span class="dot">' + activeForClient + '</span>' : "");
-
-  var html = state.role === "chauffeur" ? renderChauffeur() : renderClient();
-  html += '<p class="footer-note">Connecté à une vraie base de données (Supabase) — synchronisation en direct entre tous les appareils, plus besoin d\'onglets multiples.</p>';
+  var html = state.myProfile.role === "chauffeur" ? renderChauffeur() : renderClient();
+  html += '<p class="footer-note">Connecté à une vraie base de données (Supabase) — synchronisation en direct entre tous les appareils.</p>';
   document.getElementById("app").innerHTML = html;
 
-  if (state.role === "chauffeur" && state.showNewTrip) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
-  if (state.role === "client" && state.clientSubTab === "requests" && state.showNewRequest) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
+  if (state.myProfile.role === "chauffeur" && state.showNewTrip) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
+  if (state.myProfile.role === "client" && state.clientSubTab === "requests" && state.showNewRequest) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
 }
 
 function renderAuth() {
   document.getElementById("idbox").style.display = "none";
   document.getElementById("logoutBtn").style.display = "none";
-  document.getElementById("bottomnav").style.display = "none";
   var h = '<div class="authwrap"><div class="authcard">' +
     '<div class="authtabs">' +
       '<button class="' + (state.authMode === "login" ? "active" : "") + '" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">Connexion</button>' +
@@ -543,30 +528,38 @@ function renderAuth() {
 function renderProfileSetup() {
   document.getElementById("idbox").style.display = "none";
   document.getElementById("logoutBtn").style.display = "inline-block";
-  document.getElementById("bottomnav").style.display = "none";
+
+  if (!state._chosenRole) {
+    var h0 = '<div class="authwrap"><div class="authcard">' +
+      '<h2 style="margin-top:0;">Comment vas-tu utiliser Wassil ?</h2>' +
+      '<p class="muted" style="margin-top:-4px;">Ce choix est définitif pour ce compte — crée un second compte avec un autre email si tu veux aussi jouer l\'autre rôle.</p>' +
+      '<button class="btn btn-dark" style="width:100%; margin-bottom:10px;" onclick="state._chosenRole=\'client\'; render();">📦 Je suis Client — je réserve du transport</button>' +
+      '<button class="btn btn-amber" onclick="state._chosenRole=\'chauffeur\'; render();">🚚 Je suis Chauffeur — je transporte</button>' +
+    '</div></div>';
+    document.getElementById("app").innerHTML = h0;
+    return;
+  }
+
+  var isDriver = state._chosenRole === "chauffeur";
   var h = '<div class="authwrap"><div class="authcard">' +
-    '<h2 style="margin-top:0;">Complète ton profil</h2>' +
-    '<p class="muted" style="margin-top:-4px;">Utilisé aussi bien quand tu réserves (client) que quand tu publies des trajets (chauffeur).</p>' +
+    '<h2 style="margin-top:0;">' + (isDriver ? "🚚 Profil chauffeur" : "📦 Profil client") + '</h2>' +
     '<input class="field" id="p-prenom" placeholder="Prénom" />' +
     '<input class="field" id="p-nom" placeholder="Nom" />' +
     '<input class="field" id="p-tel" placeholder="Téléphone" />' +
+    (isDriver ?
+      '<input class="field" id="d-license" placeholder="N° de permis de conduire" />' +
+      '<input class="field" id="d-plate" placeholder="Plaque d\'immatriculation" />' +
+      '<select class="field" id="d-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select>'
+    : '') +
     '<label class="muted" style="display:flex; align-items:center; gap:6px; margin-bottom:12px;"><input type="checkbox" id="p-verified" /> Je certifie mon identité (simulation de vérification)</label>' +
+    '<button class="btn btn-outline" style="margin-bottom:10px;" onclick="state._chosenRole=null; render();">← Changer de rôle</button>' +
     '<button class="btn btn-amber" onclick="saveProfileToDb()">Continuer</button>' +
     (state.profileError ? '<div class="error">' + esc(state.profileError) + '</div>' : '') +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
 }
 
-function driverOnboardingHtml() {
-  return '<div class="card">' +
-    '<div style="font-weight:700; margin-bottom:2px;">🚚 Devenir chauffeur vérifié</div>' +
-    '<p class="muted" style="margin-top:0;">Obligatoire une seule fois avant de publier un trajet ou répondre à une demande client.</p>' +
-    '<input class="field" id="d-license" placeholder="N° de permis de conduire" />' +
-    '<input class="field" id="d-plate" placeholder="Plaque d\'immatriculation" />' +
-    '<select class="field" id="d-vehicle">' + Object.keys(VEHICLES).map(function (k) { return '<option value="' + k + '">' + VEHICLES[k] + '</option>'; }).join("") + '</select>' +
-    '<button class="btn btn-amber" onclick="saveDriverProfile()">Valider mon profil chauffeur</button>' +
-    (state.driverError ? '<div class="error">' + esc(state.driverError) + '</div>' : '') + '</div>';
-}
+function driverOnboardingHtml() { return ""; }
 
 function subtabsHtml(which) {
   if (which === "chauffeur") {
@@ -600,9 +593,7 @@ function renderMyTrips() {
 
   h += '<div class="toprow"><h2 style="margin:0;">Mes trajets</h2><button class="btn btn-dark" onclick="toggleNewTrip()">+ Publier une dispo</button></div>';
 
-  if (state.showDriverOnboarding) h += driverOnboardingHtml();
-
-  if (state.showNewTrip && state.myDriverProfile) {
+  if (state.showNewTrip) {
     h += '<div class="card">' +
       '<div class="addr-wrap"><div class="addr-row">' +
         '<input class="field" id="f-origin" placeholder="Départ" value="' + esc(state._origin||"") + '" oninput="onAddressInput(\'f-origin\')" onblur="hideSuggestionsLater(\'f-origin\')" autocomplete="off" />' +
@@ -653,7 +644,6 @@ function renderClientRequestsForDrivers() {
   var name = myId();
   var open = state.requests.filter(function (r) { return r.status === "ouverte"; });
   var h = '<h2>Demandes de trajet postées par des clients</h2>';
-  if (state.showDriverOnboarding) h += driverOnboardingHtml();
   if (open.length === 0) h += '<p class="muted">Aucune demande ouverte pour l\'instant.</p>';
   open.forEach(function (rq) {
     var cp = profileById(rq.client_id);
@@ -780,7 +770,6 @@ function updateEstimate(input, price) {
 
 // ================= actions =================
 function toggleNewTrip() {
-  if (!state.myDriverProfile) { state.showDriverOnboarding = !state.showDriverOnboarding; state.driverError = ""; render(); return; }
   state.showNewTrip = !state.showNewTrip; state.tripError = ""; coords = { origin: null, dest: null }; routeInfo = null; render();
 }
 function toggleReserve(id) { state.reserveFor = state.reserveFor === id ? null : id; state.reserveError = ""; render(); }
@@ -860,7 +849,6 @@ async function publishRequest() {
   await loadAllData(); render(); showToast("Demande publiée 📢", "ok");
 }
 async function offerOnRequest(reqId) {
-  if (!state.myDriverProfile) { state.showDriverOnboarding = true; render(); return; }
   var vehSel = document.getElementById("veh-" + reqId);
   var vehicle = vehSel ? vehSel.value : "bache";
   var { error } = await sb.from("request_offers").insert({ request_id: reqId, driver_id: myId(), vehicle_type: vehicle, status: "proposee" });
@@ -878,8 +866,6 @@ async function acceptOffer(reqId, offerId) {
 }
 
 // ================= init =================
-document.getElementById("tabClient").addEventListener("click", function () { state.role = "client"; render(); });
-document.getElementById("tabChauffeur").addEventListener("click", function () { state.role = "chauffeur"; render(); });
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
 }
