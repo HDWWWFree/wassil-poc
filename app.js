@@ -3,6 +3,11 @@ function vehicleLabel(v) { return VEHICLES[v] || "🚚 Bâché"; }
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 function jsStr(s) { return "'" + String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'"; }
+function applyEmoji(el) {
+  if (typeof twemoji !== "undefined") {
+    try { twemoji.parse(el || document.body, { folder: "svg", ext: ".svg" }); } catch (e) {}
+  }
+}
 
 // ================= état =================
 var state = {
@@ -288,6 +293,7 @@ function subscribeThread(type, id) {
 }
 async function openChat(type, id, withName) {
   state.activeChat = { type: type, id: id, withName: withName };
+  state.emojiPickerOpen = false;
   markSeen(type, id);
   renderChatOverlay();
   await loadThreadMessages(type, id);
@@ -344,6 +350,14 @@ function co2Html(r, t) {
   var kg = Math.round(t.distance_km * 0.9 * (r.m3 / t.capacity));
   return '<div class="co2">🌱 ≈ ' + kg + ' kg de CO₂ économisés en mutualisant ce chargement (estimation illustrative)</div>';
 }
+var EMOJI_CATS = {
+  reactions: ["😊", "😂", "👍", "👎", "🙏", "😅", "😢", "😡", "❤️", "🎉", "👏", "🤝", "😉", "🤔", "👌"],
+  transport: ["🚚", "🚛", "📦", "📍", "🗺️", "⛽", "🛣️", "🏁", "⏰", "🚦", "🧭"],
+  comm: ["👋", "✅", "❌", "❓", "❗", "💬", "📞", "📅", "💰", "📸", "🔔"],
+  eco: ["🌱", "🍃", "🌿", "♻️", "🌍", "☀️"]
+};
+var EMOJI_CAT_LABELS = { reactions: "😊", transport: "🚚", comm: "💬", eco: "🌱" };
+
 function renderChatOverlay() {
   var el = document.getElementById("chatOverlay");
   var ac = state.activeChat;
@@ -356,8 +370,20 @@ function renderChatOverlay() {
   }).join("");
   if (!msgs) msgs = '<p class="muted" style="text-align:center; margin-top:20px;">' + tr("no_messages") + '</p>';
 
-  var quickEmojis = ["👍", "✅", "📦", "🚚", "⏰", "📍", "🙏", "😊"];
-  var emojiRow = quickEmojis.map(function (e) { return '<button type="button" class="emoji-chip" onclick="insertEmoji(' + jsStr(e) + ')">' + e + '</button>'; }).join("");
+  var pickerHtml = "";
+  if (state.emojiPickerOpen) {
+    var cat = state.emojiCat || "reactions";
+    var tabs = Object.keys(EMOJI_CATS).map(function (k) {
+      return '<button type="button" class="emoji-cat-tab' + (k === cat ? " active" : "") + '" onclick="setEmojiCat(' + jsStr(k) + ')">' + EMOJI_CAT_LABELS[k] + '</button>';
+    }).join("");
+    var grid = EMOJI_CATS[cat].map(function (e) {
+      return '<button type="button" class="emoji-chip" onclick="insertEmoji(' + jsStr(e) + ')">' + e + '</button>';
+    }).join("");
+    pickerHtml = '<div class="emoji-picker">' +
+      '<div class="emoji-cat-tabs">' + tabs + '</div>' +
+      '<div class="emoji-grid">' + grid + '</div>' +
+    '</div>';
+  }
 
   el.innerHTML = '<div class="chat-backdrop" onclick="if(event.target===this)closeChat();">' +
     '<div class="chat-sheet">' +
@@ -365,16 +391,20 @@ function renderChatOverlay() {
         '<div class="chat-header-txt"><span class="name">' + esc(ac.withName || "Chat") + '</span><span class="chat-sub">🍃 ECORoute</span></div>' +
         '<button class="chat-close" onclick="closeChat()">✕</button></div>' +
       '<div class="chat-msgs" id="chat-msgs">' + msgs + '</div>' +
-      '<div class="chat-emojibar">' + emojiRow + '</div>' +
+      pickerHtml +
       '<div class="chat-inputbar">' +
+        '<button type="button" class="emoji-toggle" onclick="toggleEmojiPicker()">😊</button>' +
         '<input type="text" id="chat-input" placeholder="' + tr("write_message") + '" onkeydown="if(event.key===\'Enter\')sendChatMessage()" />' +
         '<button class="chat-send" onclick="sendChatMessage()">➤</button>' +
       '</div>' +
     '</div></div>';
 
+  applyEmoji(el);
   var box = document.getElementById("chat-msgs");
   if (box) box.scrollTop = box.scrollHeight;
 }
+function toggleEmojiPicker() { state.emojiPickerOpen = !state.emojiPickerOpen; renderChatOverlay(); }
+function setEmojiCat(cat) { state.emojiCat = cat; renderChatOverlay(); }
 function insertEmoji(e) {
   var input = document.getElementById("chat-input");
   if (!input) return;
@@ -432,6 +462,7 @@ function render() {
   var html = state.myProfile.role === "chauffeur" ? renderChauffeur() : renderClient();
   html += '<p class="footer-note">© ' + new Date().getFullYear() + ' ECORoute — HD &amp; BS</p>';
   document.getElementById("app").innerHTML = html;
+  applyEmoji(document.getElementById("app"));
 
   if (state.myProfile.role === "chauffeur" && state.showNewTrip) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
   if (state.myProfile.role === "client" && state.clientSubTab === "requests" && state.showNewRequest) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
@@ -451,6 +482,7 @@ function renderAuth() {
       (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
     '</div></div>';
     document.getElementById("app").innerHTML = hf;
+    applyEmoji(document.getElementById("app"));
     return;
   }
   var h = '<div class="authwrap"><div class="authcard">' +
@@ -468,6 +500,7 @@ function renderAuth() {
     '<p class="muted" style="margin-top:14px; text-align:center;"><img src="icons/icon-192.png" alt="" style="width:20px;height:20px;border-radius:5px;vertical-align:-5px;" /> ECORoute — ' + tr("tagline") + '</p>' +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
+  applyEmoji(document.getElementById("app"));
 }
 
 function renderResetPassword() {
@@ -484,6 +517,7 @@ function renderResetPassword() {
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
+  applyEmoji(document.getElementById("app"));
 }
 
 function renderProfileSetup() {
@@ -498,6 +532,7 @@ function renderProfileSetup() {
       '<button class="btn btn-amber" onclick="state._chosenRole=\'chauffeur\'; render();">' + tr("role_driver") + '</button>' +
     '</div></div>';
     document.getElementById("app").innerHTML = h0;
+    applyEmoji(document.getElementById("app"));
     return;
   }
 
@@ -518,6 +553,7 @@ function renderProfileSetup() {
     (state.profileError ? '<div class="error">' + esc(state.profileError) + '</div>' : '') +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
+  applyEmoji(document.getElementById("app"));
 }
 
 function driverOnboardingHtml() { return ""; }
