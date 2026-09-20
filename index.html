@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ECORoute — réservation de capacité camion</title>
 <link rel="manifest" href="manifest.json" />
-<meta name="theme-color" content="#0b1120" />
+<meta name="theme-color" content="#0b7a5e" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
 <link rel="icon" href="icons/icon-192.png" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -21,6 +22,11 @@
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="idbox" id="idbox" style="display:none;"><span class="dot"></span><span id="idboxText">—</span></div>
       <button class="logout-btn" id="logoutBtn" style="display:none;" onclick="doLogout()">Déconnexion</button>
+      <select id="langSelect" class="theme-btn" style="width:auto; padding:0 6px;" onchange="setLang(this.value)">
+        <option value="fr">FR</option>
+        <option value="en">EN</option>
+        <option value="ar">AR</option>
+      </select>
       <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Mode sombre">🌙</button>
     </div>
   </div>
@@ -28,6 +34,7 @@
 <main id="app"></main>
 <div id="chatOverlay"></div>
 <script src="config.js"></script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
