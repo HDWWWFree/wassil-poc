@@ -192,6 +192,7 @@ var VEHICLES = { bache: "🚚 Bâché", frigo: "❄️ Frigorifique", plateau: "
 function vehicleLabel(v) { return VEHICLES[v] || "🚚 Bâché"; }
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+function jsStr(s) { return "'" + String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'"; }
 
 // ================= état =================
 var state = {
@@ -744,7 +745,7 @@ function renderMyTrips() {
               (r.status === "en_attente" ? '<button class="btn-ok" onclick="decide(\'' + r.id + '\',\'validee\')">Valider</button><button class="btn-no" onclick="decide(\'' + r.id + '\',\'refusee\')">Refuser</button>' : '') +
               (r.status === "validee" ? '<button class="btn-purple" onclick="startTrip(\'' + r.id + '\')">▶ Démarrer le trajet</button>' : '') +
               (r.status === "en_route" ? '<button class="btn-info" onclick="decide(\'' + r.id + '\',\'terminee\')">Marquer livré</button>' : '') +
-              '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + JSON.stringify(displayName(cp)) + ')" title="Chat">💬</button></div></div>' +
+              '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + jsStr(displayName(cp)) + ')" title="Chat">💬</button></div></div>' +
           ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
           progressHtml(r) + '</div>';
       });
@@ -772,7 +773,7 @@ function renderClientRequestsForDrivers() {
       '</div>';
     if (myOffer) {
       h += ((myOffer.status === "acceptee") ? '<div class="contact">📞 Contact client : ' + esc(cp ? cp.tel : "") + '</div>' : '') +
-        '<div style="margin-top:8px;"><button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + myOffer.id + '\',' + JSON.stringify(displayName(cp)) + ')" title="Chat">💬</button></div>';
+        '<div style="margin-top:8px;"><button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + myOffer.id + '\',' + jsStr(displayName(cp)) + ')" title="Chat">💬</button></div>';
     }
     h += '</div>';
   });
@@ -852,7 +853,7 @@ function renderMyReservationsOnly() {
     h += '<div class="card"><div class="flexwrap"><div><b>' + tripLabel(r.trip_id) + '</b> · ' + r.m3 + ' m³</div>' +
         '<div style="display:flex; gap:6px; align-items:center;">' + badge(r.status) +
           (r.status === "en_attente" ? '<button class="btn-outline" onclick="decide(\'' + r.id + '\',\'annulee\')">Annuler</button>' : '') +
-          '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + JSON.stringify(dp ? displayName(dp) : "Chauffeur") + ')" title="Chat">💬</button></div></div>' +
+          '<button class="chat-icon-btn" onclick="openChat(\'reservation\',\'' + r.id + '\',' + jsStr(dp ? displayName(dp) : "Chauffeur") + ')" title="Chat">💬</button></div></div>' +
       ((r.status === "validee" || r.status === "en_route" || r.status === "terminee") && dp ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp.tel) + '</div>' : '') +
       (t ? '<div>' + routeBadgeHtml(t) + '</div>' : '') + progressHtml(r) +
       (r.status === "terminee" ? co2Html(r, t) + ratingWidget(r) : '') + '</div>';
@@ -893,7 +894,7 @@ function renderMyRequests() {
         h += '<div class="resitem"><div class="flexwrap"><div><b>' + esc(displayName(dp)) + '</b> ' + verifiedTag(dp) + ' ' + driverVerifiedTag(dp) + ' · ' + vehicleLabel(o.vehicle_type) + '</div>' +
             '<div style="display:flex; gap:6px; align-items:center;">' + badge(o.status) +
               (o.status === "proposee" ? '<button class="btn-ok" onclick="acceptOffer(\'' + rq.id + '\',\'' + o.id + '\')">Accepter</button>' : '') +
-              '<button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + o.id + '\',' + JSON.stringify(displayName(dp)) + ')" title="Chat">💬</button></div></div>' +
+              '<button class="chat-icon-btn" onclick="openChat(\'offer\',\'' + o.id + '\',' + jsStr(displayName(dp)) + ')" title="Chat">💬</button></div></div>' +
           (o.status === "acceptee" ? '<div class="contact">📞 Contact chauffeur : ' + esc(dp ? dp.tel : "") + '</div>' : '') + '</div>';
       });
       h += '</div>';
