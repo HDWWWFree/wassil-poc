@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Wassil — réservation de capacité camion</title>
+<title>RoutECO — réservation de capacité camion</title>
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0b1120" />
 <link rel="apple-touch-icon" href="icon-192.png" />
@@ -149,7 +149,7 @@
 <div class="toast-wrap" id="toastWrap"></div>
 <header>
   <div class="row">
-    <div class="brand">🚚 Wassil<span class="tagline">réservation de capacité camion</span></div>
+    <div class="brand">🚚 RoutECO<span class="tagline">réservation de capacité camion</span></div>
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="idbox" id="idbox" style="display:none;"><span class="dot"></span><span id="idboxText">—</span></div>
       <button class="logout-btn" id="logoutBtn" style="display:none;" onclick="doLogout()">Déconnexion</button>
@@ -550,7 +550,7 @@ function render() {
   document.getElementById("idboxText").textContent = displayName(state.myProfile) + " · " + (state.myProfile.role === "chauffeur" ? "🚚 Chauffeur" : "📦 Client");
 
   var html = state.myProfile.role === "chauffeur" ? renderChauffeur() : renderClient();
-  html += '<p class="footer-note">© ' + new Date().getFullYear() + ' Wassil — HD &amp; BS</p>';
+  html += '<p class="footer-note">© ' + new Date().getFullYear() + ' RoutECO — HD &amp; BS</p>';
   document.getElementById("app").innerHTML = html;
 
   if (state.myProfile.role === "chauffeur" && state.showNewTrip) setTimeout(function () { ensureMap(); updateRoutePreview(); }, 0);
@@ -585,7 +585,7 @@ function renderAuth() {
       (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? "Se connecter" : "Créer mon compte") + '</button>' +
     (state.authMode === "login" ? '<button class="btn-outline" style="width:100%; margin-top:10px; text-align:center;" onclick="state.authMode=\'forgot\'; state.authError=\'\'; render();">Mot de passe oublié ?</button>' : '') +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
-    '<p class="muted" style="margin-top:14px; text-align:center;">🚚 Wassil — marketplace de capacité camion</p>' +
+    '<p class="muted" style="margin-top:14px; text-align:center;">🚚 RoutECO — marketplace de capacité camion</p>' +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
 }
@@ -612,7 +612,7 @@ function renderProfileSetup() {
 
   if (!state._chosenRole) {
     var h0 = '<div class="authwrap"><div class="authcard">' +
-      '<h2 style="margin-top:0;">Comment vas-tu utiliser Wassil ?</h2>' +
+      '<h2 style="margin-top:0;">Comment vas-tu utiliser RoutECO ?</h2>' +
       '<p class="muted" style="margin-top:-4px;">Ce choix est définitif pour ce compte — crée un second compte avec un autre email si tu veux aussi jouer l\'autre rôle.</p>' +
       '<button class="btn btn-dark" style="width:100%; margin-bottom:10px;" onclick="state._chosenRole=\'client\'; render();">📦 Je suis Client — je réserve du transport</button>' +
       '<button class="btn btn-amber" onclick="state._chosenRole=\'chauffeur\'; render();">🚚 Je suis Chauffeur — je transporte</button>' +
