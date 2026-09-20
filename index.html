@@ -267,7 +267,11 @@ function osmDirectionsUrl(t) { if (!t.origin_lat || !t.dest_lat) return null; re
 async function initAuth() {
   var { data } = await sb.auth.getSession();
   state.session = data.session;
-  sb.auth.onAuthStateChange(function (event, session) { state.session = session; onAuthChange(); });
+  sb.auth.onAuthStateChange(function (event, session) {
+    state.session = session;
+    if (event === "PASSWORD_RECOVERY") { state.authMode = "reset"; render(); return; }
+    onAuthChange();
+  });
   await onAuthChange();
 }
 async function onAuthChange() {
@@ -302,6 +306,29 @@ async function doLogin() {
   state.session = data.session; await onAuthChange();
 }
 async function doLogout() { await sb.auth.signOut(); state.session = null; await onAuthChange(); }
+async function doForgotPassword() {
+  var email = document.getElementById("auth-email").value.trim();
+  if (!email) { state.authError = "Entre ton email d'abord."; render(); return; }
+  state.authBusy = true; state.authError = ""; render();
+  var { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+  state.authBusy = false;
+  if (error) { state.authError = error.message; render(); return; }
+  state.authMode = "login"; render();
+  showToast("Email envoyé — clique le lien reçu pour choisir un nouveau mot de passe.", "ok");
+}
+async function doUpdatePassword() {
+  var pass = document.getElementById("reset-pass").value;
+  var pass2 = document.getElementById("reset-pass2").value;
+  if (pass.length < 6) { state.authError = "6 caractères minimum."; render(); return; }
+  if (pass !== pass2) { state.authError = "Les deux mots de passe ne correspondent pas."; render(); return; }
+  state.authBusy = true; state.authError = ""; render();
+  var { error } = await sb.auth.updateUser({ password: pass });
+  state.authBusy = false;
+  if (error) { state.authError = error.message; render(); return; }
+  state.authMode = "login"; state.authError = "";
+  showToast("Mot de passe mis à jour ✅", "ok");
+  await onAuthChange();
+}
 
 async function loadMyProfile() {
   var { data } = await sb.from("profiles").select("*").eq("id", myId()).maybeSingle();
@@ -492,6 +519,7 @@ setInterval(function () {
 
 // ================= rendu =================
 function render() {
+  if (state.authMode === "reset") { renderResetPassword(); return; }
   if (!state.session) { renderAuth(); return; }
   if (!state.myProfile) { renderProfileSetup(); return; }
 
@@ -510,6 +538,19 @@ function render() {
 function renderAuth() {
   document.getElementById("idbox").style.display = "none";
   document.getElementById("logoutBtn").style.display = "none";
+  if (state.authMode === "forgot") {
+    var hf = '<div class="authwrap"><div class="authcard">' +
+      '<h2 style="margin-top:0;">Mot de passe oublié</h2>' +
+      '<p class="muted" style="margin-top:-4px;">Entre ton email, tu recevras un lien pour en choisir un nouveau.</p>' +
+      '<input class="field" id="auth-email" type="email" placeholder="Email" autocomplete="username" />' +
+      '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="doForgotPassword()">' +
+        (state.authBusy ? '<span class="spinner"></span>' : "") + 'Envoyer le lien' + '</button>' +
+      '<button class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">← Retour à la connexion</button>' +
+      (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
+    '</div></div>';
+    document.getElementById("app").innerHTML = hf;
+    return;
+  }
   var h = '<div class="authwrap"><div class="authcard">' +
     '<div class="authtabs">' +
       '<button class="' + (state.authMode === "login" ? "active" : "") + '" onclick="state.authMode=\'login\'; state.authError=\'\'; render();">Connexion</button>' +
@@ -519,8 +560,23 @@ function renderAuth() {
     '<input class="field" id="auth-pass" type="password" placeholder="Mot de passe" autocomplete="' + (state.authMode === "login" ? "current-password" : "new-password") + '" />' +
     '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="' + (state.authMode === "login" ? "doLogin()" : "doSignup()") + '">' +
       (state.authBusy ? '<span class="spinner"></span>' : "") + (state.authMode === "login" ? "Se connecter" : "Créer mon compte") + '</button>' +
+    (state.authMode === "login" ? '<button class="btn-outline" style="width:100%; margin-top:10px; text-align:center;" onclick="state.authMode=\'forgot\'; state.authError=\'\'; render();">Mot de passe oublié ?</button>' : '') +
     (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
     '<p class="muted" style="margin-top:14px; text-align:center;">🚚 Wassil — marketplace de capacité camion</p>' +
+  '</div></div>';
+  document.getElementById("app").innerHTML = h;
+}
+
+function renderResetPassword() {
+  document.getElementById("idbox").style.display = "none";
+  document.getElementById("logoutBtn").style.display = "none";
+  var h = '<div class="authwrap"><div class="authcard">' +
+    '<h2 style="margin-top:0;">Choisis un nouveau mot de passe</h2>' +
+    '<input class="field" id="reset-pass" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" />' +
+    '<input class="field" id="reset-pass2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password" />' +
+    '<button class="btn btn-amber" ' + (state.authBusy ? "disabled" : "") + ' onclick="doUpdatePassword()">' +
+      (state.authBusy ? '<span class="spinner"></span>' : "") + 'Mettre à jour' + '</button>' +
+    (state.authError ? '<div class="error">' + esc(state.authError) + '</div>' : '') +
   '</div></div>';
   document.getElementById("app").innerHTML = h;
 }
