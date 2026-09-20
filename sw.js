@@ -1,7 +1,7 @@
-// Service worker minimal : garde l'app disponible hors-ligne (l'interface,
-// pas les données en direct, qui ont toujours besoin d'internet pour Supabase).
-var CACHE = "wassil-cache-v1";
-var APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+// Service worker minimal : garde l'interface de l'app disponible hors-ligne
+// (pas les données en direct, qui ont toujours besoin d'internet pour Supabase).
+var CACHE = "ecoroute-cache-v2";
+var APP_SHELL = ["./", "./index.html", "./style.css", "./config.js", "./app.js", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", function (event) {
   event.waitUntil(caches.open(CACHE).then(function (cache) { return cache.addAll(APP_SHELL); }));
